@@ -32,6 +32,7 @@ class PianoSyncServer {
         this.connectedClients = new Map();
         this.currentSession = null;
         this.songs = [];
+        this.autoStopTimer = null;
         
         // システム状態
         this.systemStatus = {
@@ -342,12 +343,24 @@ class PianoSyncServer {
             songId: song.id,
             startTime: startTime,
             bpm: bpm,
-            status: 'starting'
+            status: 'playing',
+            duration: song.duration
         };
 
         this.systemStatus.isPlaying = true;
         this.systemStatus.currentSong = song.id;
         this.systemStatus.bpm = bpm;
+
+        // 楽曲終了時の自動停止タイマーを設定
+        if (this.autoStopTimer) {
+            clearTimeout(this.autoStopTimer);
+        }
+        
+        const stopDelay = (song.duration * 1000) + 1000; // 楽曲時間 + 1秒のバッファ
+        this.autoStopTimer = setTimeout(() => {
+            console.log(`🛑 Auto-stopping performance after ${song.duration}s`);
+            this.stopPerformance();
+        }, stopDelay);
 
         // 全クライアントに同期開始信号送信
         this.broadcastToAll({
@@ -365,12 +378,18 @@ class PianoSyncServer {
             this.leds.sync.writeSync(1);
         }
 
-        console.log(`🎵 Performance started: ${song.title} at ${bpm} BPM (startTime: ${startTime})`);
+        console.log(`🎵 Performance started: ${song.title} at ${bpm} BPM (duration: ${song.duration}s, auto-stop in ${stopDelay}ms)`);
         return { success: true, song: song, startTime: startTime };
     }
 
     stopPerformance() {
         if (!this.currentSession) return;
+
+        // 自動停止タイマーをクリア
+        if (this.autoStopTimer) {
+            clearTimeout(this.autoStopTimer);
+            this.autoStopTimer = null;
+        }
 
         this.broadcastToAll({
             type: 'sync_stop',

@@ -28,6 +28,8 @@ class PianoClient {
         this.currentSong = null;
         this.activeNotes = new Map();
         this.animationId = null;
+        this.autoStopTimer = null;
+        this.endingSoon = false;
         
         // パフォーマンス最適化
         this.lastFrameTime = 0;
@@ -286,16 +288,36 @@ class PianoClient {
         this.currentSong = data.song;
         this.updateBPM(data.bpm);
         this.clearNotes();
+        this.endingSoon = false; // 終了フラグをリセット
         
         // アニメーション開始
         this.startAnimation();
         
         // 背景色を変更して演奏中を示す
         document.body.style.background = `linear-gradient(135deg, ${this.options.fallbackColor}22, #1a1a1a)`;
+        
+        // クライアント側での自動停止タイマー（サーバーのバックアップ）
+        if (this.autoStopTimer) {
+            clearTimeout(this.autoStopTimer);
+        }
+        
+        const stopDelay = (data.song.duration * 1000) + 2000; // 楽曲時間 + 2秒のバッファ
+        this.autoStopTimer = setTimeout(() => {
+            console.log(`🕐 Client-side auto-stop after ${data.song.duration}s`);
+            this.stopPerformance();
+        }, stopDelay);
+        
+        console.log(`⏰ Auto-stop scheduled in ${stopDelay / 1000}s`);
     }
 
     stopPerformance() {
         console.log(`🛑 Stopping ${this.clientType} performance`);
+        
+        // 自動停止タイマーをクリア
+        if (this.autoStopTimer) {
+            clearTimeout(this.autoStopTimer);
+            this.autoStopTimer = null;
+        }
         
         this.currentSong = null;
         this.stopAnimation();
@@ -305,8 +327,9 @@ class PianoClient {
         document.body.style.background = '#1a1a1a';
         
         // タイムラインリセット
-        if (this.timelineProgress) {
-            this.timelineProgress.style.width = '0%';
+        const timelineElement = document.getElementById('timelineProgress') || this.timelineProgress;
+        if (timelineElement) {
+            timelineElement.style.width = '0%';
         }
     }
 
