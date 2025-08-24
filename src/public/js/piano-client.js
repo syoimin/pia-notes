@@ -1,5 +1,5 @@
 /**
- * Piano Client - タブレット用クライアント
+ * Piano Client - タブレット用クライアント (88鍵グランドピアノ対応)
  * ノーツ表示と演奏インターフェース
  */
 
@@ -64,74 +64,113 @@ class PianoClient {
     setupDOM() {
         this.container = document.querySelector('.piano-display') || document.body;
         
-        // ノーツコンテナ
-        this.notesContainer = document.createElement('div');
-        this.notesContainer.className = 'notes-container';
-        this.notesContainer.style.cssText = `
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            overflow: hidden;
-        `;
-        this.container.appendChild(this.notesContainer);
+        // 既存のDOM要素を使用するかチェック
+        if (!this.options.useExistingDOM) {
+            // ノーツコンテナ
+            this.notesContainer = document.createElement('div');
+            this.notesContainer.className = 'notes-container';
+            this.notesContainer.style.cssText = `
+                position: absolute;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                overflow: hidden;
+            `;
+            this.container.appendChild(this.notesContainer);
 
-        // 鍵盤ガイド
-        this.createKeyboardGuide();
+            // 鍵盤ガイド
+            this.create88KeyKeyboard();
 
-        // ステータス表示
-        this.createStatusIndicators();
+            // ステータス表示
+            this.createStatusIndicators();
 
-        // タイムライン
-        this.createTimeline();
+            // タイムライン
+            this.createTimeline();
+        } else {
+            // 既存のDOM要素を使用
+            this.notesContainer = document.getElementById('notesContainer') || this.container.querySelector('.notes-container');
+            this.keyboardGuide = document.getElementById('keyboardGuide') || this.container.querySelector('.keyboard-guide');
+            this.statusIndicator = document.getElementById('connectionStatus') || this.container.querySelector('.connection-status');
+            this.bpmDisplay = document.getElementById('bpmDisplay') || this.container.querySelector('.bpm-display');
+            this.timelineProgress = document.getElementById('timelineProgress') || this.container.querySelector('.timeline-progress');
+
+            // 鍵盤ガイドが空の場合は88鍵を作成
+            if (this.keyboardGuide && this.keyboardGuide.children.length === 0) {
+                this.create88KeyKeyboard();
+            }
+        }
     }
 
-    createKeyboardGuide() {
-        this.keyboardGuide = document.createElement('div');
-        this.keyboardGuide.className = 'keyboard-guide';
+    create88KeyKeyboard() {
+        if (!this.keyboardGuide) {
+            this.keyboardGuide = document.createElement('div');
+            this.keyboardGuide.className = 'keyboard-guide';
+            this.keyboardGuide.id = 'keyboardGuide';
+            this.container.appendChild(this.keyboardGuide);
+        }
+
+        // 88鍵のピアノ鍵盤を作成 (A0からC8まで)
+        const keys = this.generate88Keys();
         
-        // ピアノの鍵盤を作成（Cメジャースケール）
-        const whiteKeys = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
-        const blackKeys = ['C#', 'D#', '', 'F#', 'G#', 'A#', ''];
+        keys.forEach((keyData, index) => {
+            const keyElement = document.createElement('div');
+            keyElement.className = `key ${keyData.type}`;
+            keyElement.dataset.note = keyData.note;
+            keyElement.dataset.keyIndex = index;
+            keyElement.textContent = keyData.label || '';
+            
+            // 基本スタイルはCSSで設定済み、追加のデータ属性のみ設定
+            if (keyData.octave !== undefined) {
+                keyElement.dataset.octave = keyData.octave;
+            }
+            
+            this.keyboardGuide.appendChild(keyElement);
 
-        whiteKeys.forEach((note, index) => {
-            const whiteKey = document.createElement('div');
-            whiteKey.className = 'key white';
-            whiteKey.dataset.note = note + '4'; // オクターブ4
-            whiteKey.style.cssText = `
-                width: 40px;
-                height: 120px;
-                background: white;
-                border: 1px solid #ccc;
-                border-radius: 0 0 4px 4px;
-                box-shadow: 0 2px 4px rgba(0,0,0,0.3);
-                transition: all 0.1s ease;
-            `;
-            this.keyboardGuide.appendChild(whiteKey);
-
-            // 黒鍵
-            if (blackKeys[index]) {
-                const blackKey = document.createElement('div');
-                blackKey.className = 'key black';
-                blackKey.dataset.note = blackKeys[index] + '4';
-                blackKey.style.cssText = `
-                    width: 25px;
-                    height: 80px;
-                    background: #333;
-                    border-radius: 0 0 3px 3px;
-                    margin-left: -12.5px;
-                    margin-right: -12.5px;
-                    z-index: 2;
-                    position: relative;
-                    box-shadow: 0 2px 4px rgba(0,0,0,0.5);
-                    transition: all 0.1s ease;
-                `;
-                this.keyboardGuide.appendChild(blackKey);
+            // オクターブラベルの追加（Cキーのみ）
+            if (keyData.note.includes('C') && keyData.type === 'white') {
+                const octaveLabel = document.createElement('div');
+                octaveLabel.className = 'octave-label';
+                octaveLabel.textContent = `C${keyData.octave}`;
+                keyElement.appendChild(octaveLabel);
             }
         });
 
-        this.container.appendChild(this.keyboardGuide);
+        console.log(`🎹 Created 88-key keyboard with ${keys.length} keys`);
+    }
+
+    generate88Keys() {
+        const keys = [];
+        const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+        const whiteKeys = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
+        
+        // A0から開始
+        keys.push({ note: 'A0', type: 'white', octave: 0, label: 'A' });
+        keys.push({ note: 'A#0', type: 'black', octave: 0 });
+        keys.push({ note: 'B0', type: 'white', octave: 0, label: 'B' });
+
+        // C1からC8まで
+        for (let octave = 1; octave <= 8; octave++) {
+            for (let i = 0; i < noteNames.length; i++) {
+                const noteName = noteNames[i];
+                const fullNote = `${noteName}${octave}`;
+                const isWhite = whiteKeys.includes(noteName);
+                
+                keys.push({
+                    note: fullNote,
+                    type: isWhite ? 'white' : 'black',
+                    octave: octave,
+                    label: isWhite ? noteName : ''
+                });
+
+                // C8で終了
+                if (octave === 8 && noteName === 'C') {
+                    break;
+                }
+            }
+        }
+
+        return keys;
     }
 
     createStatusIndicators() {
@@ -251,14 +290,16 @@ class PianoClient {
         document.addEventListener('click', resumeAudio, { once: true });
 
         // 鍵盤インタラクション
-        this.keyboardGuide.addEventListener('touchstart', (e) => {
-            e.preventDefault();
-            this.handleKeyPress(e.target);
-        });
+        if (this.keyboardGuide) {
+            this.keyboardGuide.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                this.handleKeyPress(e.target);
+            });
 
-        this.keyboardGuide.addEventListener('click', (e) => {
-            this.handleKeyPress(e.target);
-        });
+            this.keyboardGuide.addEventListener('click', (e) => {
+                this.handleKeyPress(e.target);
+            });
+        }
 
         // スクリーンロック防止
         this.preventScreenLock();
@@ -569,7 +610,16 @@ class PianoClient {
             return noteData.position;
         }
 
-        // ノート名から画面上の横位置を計算
+        // 88鍵対応のノートマッピング（A0からC8まで）
+        const keyPositions = this.generate88KeyPositions();
+        const position = keyPositions[noteData.note];
+        
+        if (position !== undefined) {
+            console.log(`Note ${noteData.note} mapped to position: ${position}px`);
+            return position;
+        }
+        
+        // フォールバック: 既存の計算方法
         const noteMap = {
             'C': 100, 'C#': 115, 'Db': 115,
             'D': 140, 'D#': 155, 'Eb': 155,
@@ -593,9 +643,50 @@ class PianoClient {
         return calculatedPosition;
     }
 
+    generate88KeyPositions() {
+        const positions = {};
+        const keyWidth = 28; // 白鍵の幅
+        const blackKeyWidth = 18; // 黒鍵の幅
+        const startX = 50; // 開始位置
+        let currentX = startX;
+
+        // A0, A#0, B0
+        positions['A0'] = currentX;
+        currentX += keyWidth;
+        positions['A#0'] = currentX - blackKeyWidth / 2;
+        positions['B0'] = currentX;
+        currentX += keyWidth;
+
+        // C1からC8まで
+        const notePattern = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+        const whiteKeys = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
+
+        for (let octave = 1; octave <= 8; octave++) {
+            for (let i = 0; i < notePattern.length; i++) {
+                const noteName = notePattern[i];
+                const fullNote = `${noteName}${octave}`;
+                
+                if (whiteKeys.includes(noteName)) {
+                    positions[fullNote] = currentX;
+                    currentX += keyWidth;
+                } else {
+                    // 黒鍵は前の白鍵の位置から少し右にオフセット
+                    positions[fullNote] = currentX - keyWidth + (keyWidth - blackKeyWidth) / 2;
+                }
+
+                // C8で終了
+                if (octave === 8 && noteName === 'C') {
+                    break;
+                }
+            }
+        }
+
+        return positions;
+    }
+
     highlightKey(noteName) {
         // 対応する鍵盤をハイライト
-        const key = this.keyboardGuide.querySelector(`[data-note="${noteName}"]`);
+        const key = this.keyboardGuide?.querySelector(`[data-note="${noteName}"]`);
         if (key) {
             key.classList.add('active');
             key.style.background = this.options.fallbackColor;
@@ -603,7 +694,7 @@ class PianoClient {
             // 短時間後にハイライトを解除
             setTimeout(() => {
                 key.classList.remove('active');
-                key.style.background = key.classList.contains('black') ? '#333' : 'white';
+                key.style.background = key.classList.contains('black') ? 'linear-gradient(to bottom, #333, #111)' : 'linear-gradient(to bottom, #ffffff, #f5f5f5)';
             }, 200);
         }
     }
@@ -617,7 +708,9 @@ class PianoClient {
     }
 
     clearNotes() {
-        this.notesContainer.innerHTML = '';
+        if (this.notesContainer) {
+            this.notesContainer.innerHTML = '';
+        }
         this.activeNotes.clear();
     }
 
@@ -627,8 +720,8 @@ class PianoClient {
         const indicator = this.statusIndicator.querySelector('.status-indicator');
         const text = this.statusIndicator.querySelector('span:last-child');
         
-        indicator.className = `status-indicator status-${status}`;
-        text.textContent = message;
+        if (indicator) indicator.className = `status-indicator status-${status}`;
+        if (text) text.textContent = message;
     }
 
     updateBPM(bpm) {
@@ -670,7 +763,9 @@ class PianoClient {
         
         setTimeout(() => {
             key.style.transform = '';
-            key.style.background = key.classList.contains('black') ? '#333' : 'white';
+            key.style.background = key.classList.contains('black') ? 
+                'linear-gradient(to bottom, #333, #111)' : 
+                'linear-gradient(to bottom, #ffffff, #f5f5f5)';
         }, 150);
         
         // 音声フィードバック（オプション）
@@ -713,6 +808,11 @@ class PianoClient {
         } catch (error) {
             console.log('Sound play failed:', error);
         }
+    }
+
+    playNoteSound(noteName) {
+        // playKeySoundと同じ実装
+        this.playKeySound(noteName);
     }
 
     handleResize() {
@@ -764,7 +864,9 @@ class PianoClient {
         `;
         document.head.appendChild(style);
         
-        this.notesContainer.appendChild(testNote);
+        if (this.notesContainer) {
+            this.notesContainer.appendChild(testNote);
+        }
         
         // 3秒後に削除
         setTimeout(() => {
@@ -772,6 +874,7 @@ class PianoClient {
             style.remove();
         }, 3000);
     }
+
     destroy() {
         this.stopAnimation();
         this.clearNotes();
@@ -784,9 +887,34 @@ class PianoClient {
     }
 }
 
+// PianoSyncUtils（必要な場合）
+class PianoSyncUtils {
+    static noteToMidi(noteName) {
+        const noteMap = {
+            'C': 0, 'C#': 1, 'Db': 1,
+            'D': 2, 'D#': 3, 'Eb': 3,
+            'E': 4,
+            'F': 5, 'F#': 6, 'Gb': 6,
+            'G': 7, 'G#': 8, 'Ab': 8,
+            'A': 9, 'A#': 10, 'Bb': 10,
+            'B': 11
+        };
+
+        const match = noteName.match(/([A-G][#b]?)(\d+)/);
+        if (!match) return null;
+
+        const [, note, octave] = match;
+        const noteValue = noteMap[note];
+        if (noteValue === undefined) return null;
+
+        return (parseInt(octave) + 1) * 12 + noteValue;
+    }
+}
+
 // エクスポート
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = PianoClient;
 } else {
     window.PianoClient = PianoClient;
+    window.PianoSyncUtils = PianoSyncUtils;
 }

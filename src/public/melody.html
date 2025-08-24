@@ -141,36 +141,52 @@
             left: 50%;
             transform: translateX(-50%);
             display: flex;
-            gap: 2px;
+            gap: 1px;
             z-index: 20;
             padding: 10px;
             background: rgba(0,0,0,0.5);
             border-radius: 15px;
             backdrop-filter: blur(10px);
+            overflow-x: auto;
+            max-width: 95vw;
         }
 
+        /* 88鍵用のキーサイズ調整 */
         .key {
             transition: all 0.15s ease;
             cursor: pointer;
             box-shadow: 0 3px 6px rgba(0,0,0,0.4);
+            flex-shrink: 0;
         }
 
         .key.white {
-            width: 45px;
-            height: 140px;
+            width: 28px;
+            height: 120px;
             background: linear-gradient(to bottom, #ffffff, #f5f5f5);
             border: 1px solid #ddd;
-            border-radius: 0 0 6px 6px;
+            border-radius: 0 0 4px 4px;
+            font-size: 10px;
+            color: #666;
+            display: flex;
+            align-items: flex-end;
+            justify-content: center;
+            padding-bottom: 5px;
         }
 
         .key.black {
-            width: 28px;
-            height: 90px;
+            width: 18px;
+            height: 80px;
             background: linear-gradient(to bottom, #333, #111);
-            margin: 0 -14px;
+            margin: 0 -9px;
             z-index: 21;
             position: relative;
-            border-radius: 0 0 4px 4px;
+            border-radius: 0 0 3px 3px;
+            font-size: 8px;
+            color: #ccc;
+            display: flex;
+            align-items: flex-end;
+            justify-content: center;
+            padding-bottom: 3px;
         }
 
         .key:hover {
@@ -248,6 +264,16 @@
             display: none;
         }
 
+        /* オクターブラベル */
+        .octave-label {
+            position: absolute;
+            bottom: -30px;
+            left: 0;
+            font-size: 12px;
+            color: rgba(255,255,255,0.6);
+            font-weight: bold;
+        }
+
         @keyframes spin {
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
@@ -264,41 +290,62 @@
             50% { opacity: 0.5; }
         }
 
-        /* タブレット最適化 */
-        @media (orientation: landscape) {
-            .hand-label {
-                font-size: 5rem;
+        /* モバイル対応 */
+        @media (max-width: 1024px) {
+            .key.white {
+                width: 22px;
+                height: 100px;
+                font-size: 8px;
+                padding-bottom: 3px;
             }
             
-            .note {
-                width: 60px;
-                height: 60px;
-                font-size: 18px;
+            .key.black {
+                width: 14px;
+                height: 65px;
+                margin: 0 -7px;
+                font-size: 6px;
             }
         }
 
         @media (max-width: 768px) {
             .key.white {
-                width: 35px;
-                height: 110px;
+                width: 16px;
+                height: 80px;
+                font-size: 7px;
             }
             
             .key.black {
-                width: 22px;
-                height: 70px;
-                margin: 0 -11px;
+                width: 10px;
+                height: 50px;
+                margin: 0 -5px;
             }
             
             .note {
-                width: 45px;
-                height: 45px;
-                font-size: 14px;
+                width: 35px;
+                height: 35px;
+                font-size: 12px;
             }
             
             .connection-status,
             .bpm-display {
                 padding: 8px 15px;
                 font-size: 16px;
+            }
+        }
+
+        /* 高解像度ディスプレイ対応 */
+        @media (min-width: 1920px) {
+            .key.white {
+                width: 35px;
+                height: 140px;
+                font-size: 12px;
+            }
+            
+            .key.black {
+                width: 22px;
+                height: 95px;
+                margin: 0 -11px;
+                font-size: 9px;
             }
         }
     </style>
@@ -346,7 +393,7 @@
         <!-- ノーツコンテナ -->
         <div class="notes-container" id="notesContainer"></div>
 
-        <!-- 鍵盤ガイド -->
+        <!-- 鍵盤ガイド（88鍵） -->
         <div class="keyboard-guide" id="keyboardGuide"></div>
     </div>
 
