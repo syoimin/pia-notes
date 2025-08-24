@@ -386,6 +386,9 @@
                 // 定期更新開始
                 this.startPeriodicUpdate();
                 
+                // 初期UI状態を設定
+                this.updatePerformanceStatus('stopped');
+                
                 this.log('Piano Master Control システム起動完了');
             }
 
@@ -405,6 +408,14 @@
 
                 this.syncCore.on('message', (data) => {
                     this.handleServerMessage(data);
+                });
+
+                this.syncCore.on('syncStart', (data) => {
+                    this.updatePerformanceStatus('playing', data.song);
+                });
+
+                this.syncCore.on('syncStop', () => {
+                    this.updatePerformanceStatus('stopped');
                 });
 
                 // テンポスライダー
@@ -493,54 +504,112 @@
             }
 
             startPeriodicUpdate() {
-                setInterval(() => {
+                // 初回は即座に実行
+                this.updateStatus();
+                
+                // 5秒間隔で定期更新（エラーが発生しにくい間隔）
+                this.updateInterval = setInterval(() => {
                     this.updateStatus();
-                }, 2000);
+                }, 5000);
+                
+                console.log('📊 Periodic status update started (5s interval)');
             }
 
             async updateStatus() {
                 try {
                     const response = await fetch('/api/status');
+                    
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+                    
                     const data = await response.json();
                     
+                    // データの整合性チェック
+                    if (!data.system) {
+                        throw new Error('Invalid response: missing system data');
+                    }
+                    
+                    // DOM要素の安全な取得と更新
+                    const safeUpdateElement = (id, value) => {
+                        const element = document.getElementById(id);
+                        if (element) {
+                            element.textContent = value;
+                        }
+                    };
+                    
                     // システム状態更新
-                    document.getElementById('uptime').textContent = 
-                        Math.floor(data.system.uptime / 3600) + '時間';
+                    if (data.system.uptime !== undefined) {
+                        safeUpdateElement('uptime', Math.floor(data.system.uptime / 3600) + '時間');
+                    }
                     
                     // クライアント数更新
-                    const melodyClients = data.clients.filter(c => c.type === 'melody').length;
-                    const accompClients = data.clients.filter(c => c.type === 'accompaniment').length;
+                    if (data.clients && Array.isArray(data.clients)) {
+                        const melodyClients = data.clients.filter(c => c.type === 'melody').length;
+                        const accompClients = data.clients.filter(c => c.type === 'accompaniment').length;
+                        
+                        safeUpdateElement('clientCount', data.clients.length.toString());
+                        safeUpdateElement('melodyCount', melodyClients.toString());
+                        safeUpdateElement('accompCount', accompClients.toString());
+                    }
                     
-                    document.getElementById('clientCount').textContent = data.clients.length;
-                    document.getElementById('melodyCount').textContent = melodyClients;
-                    document.getElementById('accompCount').textContent = accompClients;
+                    // サーバー側の演奏状態と同期
+                    const isServerPlaying = Boolean(data.system.isPlaying);
+                    const currentServerSong = data.system.currentSong;
+                    
+                    if (isServerPlaying && (!this.currentPerformance || this.currentPerformance.status !== 'playing')) {
+                        // サーバーは演奏中だがUIは停止状態 → UI更新
+                        const songTitle = currentServerSong || '不明な楽曲';
+                        this.updatePerformanceStatus('playing', { title: songTitle });
+                        this.log(`状態同期: 演奏中 (${songTitle})`);
+                    } else if (!isServerPlaying && (this.currentPerformance && this.currentPerformance.status === 'playing')) {
+                        // サーバーは停止中だがUIは演奏状態 → UI更新
+                        this.updatePerformanceStatus('stopped');
+                        this.log('状態同期: 停止中');
+                    }
                     
                     // レイテンシー更新
-                    if (data.clients.length > 0) {
-                        const latencies = data.clients.map(c => c.latency).filter(l => l > 0);
+                    if (data.clients && Array.isArray(data.clients) && data.clients.length > 0) {
+                        const latencies = data.clients.map(c => Number(c.latency)).filter(l => l > 0 && !isNaN(l));
                         if (latencies.length > 0) {
                             const avg = latencies.reduce((a, b) => a + b) / latencies.length;
                             const max = Math.max(...latencies);
                             const min = Math.min(...latencies);
                             
-                            document.getElementById('avgLatency').textContent = avg.toFixed(1) + ' ms';
-                            document.getElementById('maxLatency').textContent = max.toFixed(1) + ' ms';
-                            document.getElementById('minLatency').textContent = min.toFixed(1) + ' ms';
+                            safeUpdateElement('avgLatency', avg.toFixed(1) + ' ms');
+                            safeUpdateElement('maxLatency', max.toFixed(1) + ' ms');
+                            safeUpdateElement('minLatency', min.toFixed(1) + ' ms');
                         }
                     }
                     
                     // クライアントリスト更新
-                    this.updateClientsList(data.clients);
+                    if (data.clients && Array.isArray(data.clients)) {
+                        this.updateClientsList(data.clients);
+                    }
                     
                 } catch (error) {
-                    this.log('状態の更新に失敗しました', 'error');
+                    console.error('Status update error:', error);
+                    this.log(`状態更新エラー: ${error.message}`, 'error');
+                    
+                    // エラーの詳細をログに出力
+                    if (error.name === 'TypeError' && error.message.includes('textContent')) {
+                        this.log('DOM要素が見つかりません - HTMLの読み込みを確認してください', 'error');
+                    } else if (error.name === 'TypeError') {
+                        this.log('ネットワーク接続を確認してください', 'error');
+                    } else if (error.message.includes('HTTP')) {
+                        this.log('サーバーエラーが発生しました', 'error');
+                    }
                 }
             }
 
             updateClientsList(clients) {
                 const container = document.getElementById('clientsList');
+                if (!container) {
+                    console.warn('Element not found: clientsList');
+                    return;
+                }
                 
-                if (clients.length === 0) {
+                if (!clients || clients.length === 0) {
                     container.innerHTML = `
                         <div class="client-item" style="text-align: center; color: var(--text-secondary);">
                             デバイスが接続されていません
@@ -549,18 +618,27 @@
                     return;
                 }
                 
-                container.innerHTML = clients.map(client => `
-                    <div class="client-item">
-                        <div class="client-info">
-                            <span class="status-indicator status-online"></span>
-                            <span class="client-type ${client.type}">${this.getClientTypeLabel(client.type)}</span>
-                            <span>ID: ${client.id.substring(0, 8)}...</span>
+                try {
+                    container.innerHTML = clients.map(client => `
+                        <div class="client-item">
+                            <div class="client-info">
+                                <span class="status-indicator status-online"></span>
+                                <span class="client-type ${client.type || 'unknown'}">${this.getClientTypeLabel(client.type)}</span>
+                                <span>ID: ${(client.id || '').substring(0, 8)}...</span>
+                            </div>
+                            <div>
+                                <small>${client.latency > 0 ? client.latency.toFixed(0) + 'ms' : '--'}</small>
+                            </div>
                         </div>
-                        <div>
-                            <small>${client.latency > 0 ? client.latency.toFixed(0) + 'ms' : '--'}</small>
+                    `).join('');
+                } catch (error) {
+                    console.error('Error updating clients list:', error);
+                    container.innerHTML = `
+                        <div class="client-item" style="text-align: center; color: var(--danger-color);">
+                            クライアントリスト更新エラー
                         </div>
-                    </div>
-                `).join('');
+                    `;
+                }
             }
 
             getClientTypeLabel(type) {
@@ -578,6 +656,8 @@
 
             log(message, type = 'info') {
                 const console = document.getElementById('logConsole');
+                if (!console) return;
+                
                 const timestamp = new Date().toLocaleTimeString();
                 const prefix = type === 'error' ? '❌' : type === 'warning' ? '⚠️' : 'ℹ️';
                 
@@ -596,7 +676,78 @@
 
             handleServerMessage(data) {
                 // サーバーからのメッセージを処理
-                this.log(`サーバーメッセージ: ${data.type}`);
+                switch(data.type) {
+                    case 'sync_start':
+                        this.updatePerformanceStatus('playing', data.song);
+                        this.log(`演奏開始: ${data.song.title}`);
+                        break;
+                        
+                    case 'sync_stop':
+                        this.updatePerformanceStatus('stopped');
+                        this.log('演奏が停止されました');
+                        break;
+                        
+                    case 'tempo_change':
+                        this.log(`テンポ変更: ${data.bpm} BPM`);
+                        break;
+                        
+                    default:
+                        this.log(`サーバーメッセージ: ${data.type}`);
+                }
+            }
+
+            updatePerformanceStatus(status, song = null) {
+                // DOM要素の安全な取得
+                const safeGetElement = (id) => {
+                    const element = document.getElementById(id);
+                    if (!element) {
+                        // console.warn(`Element not found: ${id}`);
+                    }
+                    return element;
+                };
+                
+                const indicator = safeGetElement('performanceIndicator');
+                const startBtn = safeGetElement('startBtn');
+                const stopBtn = safeGetElement('stopBtn');
+                const pauseBtn = safeGetElement('pauseBtn');
+                const currentSongTitle = safeGetElement('currentSongTitle');
+                const sessionStatus = safeGetElement('sessionStatus');
+                
+                if (status === 'playing') {
+                    // 演奏中の状態
+                    if (indicator) {
+                        indicator.className = 'performance-indicator playing';
+                        indicator.textContent = '🎵 演奏中';
+                    }
+                    
+                    if (startBtn) startBtn.disabled = true;
+                    if (stopBtn) stopBtn.disabled = false;
+                    if (pauseBtn) pauseBtn.disabled = false;
+                    
+                    this.currentPerformance = { song, status: 'playing' };
+                    
+                    if (song) {
+                        if (currentSongTitle) currentSongTitle.textContent = song.title || '不明な楽曲';
+                        if (sessionStatus) sessionStatus.textContent = '演奏中';
+                    }
+                } else {
+                    // 停止中の状態
+                    if (indicator) {
+                        indicator.className = 'performance-indicator stopped';
+                        indicator.textContent = '🛑 停止中';
+                    }
+                    
+                    if (startBtn) startBtn.disabled = false;
+                    if (stopBtn) stopBtn.disabled = true;
+                    if (pauseBtn) pauseBtn.disabled = true;
+                    
+                    this.currentPerformance = null;
+                    
+                    if (currentSongTitle) currentSongTitle.textContent = '未選択';
+                    if (sessionStatus) sessionStatus.textContent = '停止中';
+                }
+                
+                console.log(`UI状態更新: ${status}`);
             }
         }
 
@@ -626,18 +777,11 @@
                 
                 const result = await response.json();
                 if (result.success) {
-                    document.getElementById('startBtn').disabled = true;
-                    document.getElementById('stopBtn').disabled = false;
-                    document.getElementById('pauseBtn').disabled = false;
-                    
-                    const indicator = document.getElementById('performanceIndicator');
-                    indicator.className = 'performance-indicator playing';
-                    indicator.textContent = '🎵 演奏中';
-                    
-                    masterControl.log('演奏を開始しました');
-                    masterControl.currentPerformance = result;
+                    masterControl.log(`演奏開始: ${result.song.title}`);
+                    // UIの更新は WebSocket メッセージで行われる
                 } else {
                     alert('演奏の開始に失敗しました: ' + result.error);
+                    masterControl.log('演奏開始エラー: ' + result.error, 'error');
                 }
             } catch (error) {
                 alert('演奏の開始に失敗しました');
@@ -651,16 +795,10 @@
                 const result = await response.json();
                 
                 if (result.success) {
-                    document.getElementById('startBtn').disabled = false;
-                    document.getElementById('stopBtn').disabled = true;
-                    document.getElementById('pauseBtn').disabled = true;
-                    
-                    const indicator = document.getElementById('performanceIndicator');
-                    indicator.className = 'performance-indicator stopped';
-                    indicator.textContent = '🛑 停止中';
-                    
                     masterControl.log('演奏を停止しました');
-                    masterControl.currentPerformance = null;
+                    // UIの更新は WebSocket メッセージで行われる
+                } else {
+                    masterControl.log('演奏停止エラー', 'error');
                 }
             } catch (error) {
                 alert('演奏の停止に失敗しました');
