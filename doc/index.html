@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🎹 完全なピアノ同期システム構成図</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #1a1a1a;
+            color: white;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .architecture-diagram {
+            background: #2a2a2a;
+            border-radius: 10px;
+            padding: 30px;
+            margin: 20px 0;
+        }
+        .layer {
+            margin: 20px 0;
+            padding: 20px;
+            border-radius: 8px;
+            position: relative;
+        }
+        .hardware-layer {
+            background: linear-gradient(135deg, #4CAF50, #45a049);
+        }
+        .server-layer {
+            background: linear-gradient(135deg, #2196F3, #1976D2);
+        }
+        .client-layer {
+            background: linear-gradient(135deg, #FF9800, #F57C00);
+        }
+        .communication-layer {
+            background: linear-gradient(135deg, #9C27B0, #7B1FA2);
+        }
+        .component {
+            display: inline-block;
+            background: rgba(255,255,255,0.1);
+            padding: 10px 15px;
+            margin: 5px;
+            border-radius: 5px;
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+        .arrow {
+            text-align: center;
+            font-size: 24px;
+            margin: 10px 0;
+            color: #4CAF50;
+        }
+        .code-section {
+            background: #333;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+            border-left: 4px solid #4CAF50;
+        }
+        .file-tree {
+            background: #2a2a2a;
+            padding: 20px;
+            border-radius: 8px;
+            font-family: monospace;
+            line-height: 1.6;
+        }
+        .flow-step {
+            background: #333;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 8px;
+            border-left: 4px solid #2196F3;
+        }
+        .problem {
+            background: #d32f2f;
+            color: white;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        .solution {
+            background: #388e3c;
+            color: white;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        .grid-3 {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 20px;
+        }
+                .file-tree {
+            background-color: #2d3748;
+            color: #e2e8f0;
+            padding: 20px;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            line-height: 1.5;
+            white-space: pre;
+            overflow-x: auto;
+            border: 1px solid #4a5568;
+        }
+        
+        .file-tree::before {
+            content: '';
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎹 ピアノ同期システム - 完全構成図</h1>
+
+        <div class="problem">
+            <h3>❌ 現在のコードの問題</h3>
+            <p>最初の「ピアノ同期演奏システム」とラズパイサーバーコードが<strong>分離している</strong>ため、実際には動作しません。</p>
+            <ul>
+                <li>HTMLファイルは単体デモとして作成</li>
+                <li>ラズパイコードは別途WebSocketサーバーとして作成</li>
+                <li>両者の<strong>連携部分が欠けている</strong></li>
+            </ul>
+        </div>
+
+        <div class="solution">
+            <h3>✅ 正しい解決策</h3>
+            <p>以下のような統合されたシステム構成が必要です：</p>
+        </div>
+
+        <div class="architecture-diagram">
+            <h2>🏗️ システム全体構成</h2>
+            
+            <div class="layer hardware-layer">
+                <h3>🔧 ハードウェア層</h3>
+                <div class="grid-3">
+                    <div class="component">
+                        <strong>Raspberry Pi 4B</strong><br>
+                        Master Controller<br>
+                        IP: 192.168.1.100
+                    </div>
+                    <div class="component">
+                        <strong>Android Tablet #1</strong><br>
+                        右手（主旋律）<br>
+                        IP: 192.168.1.101
+                    </div>
+                    <div class="component">
+                        <strong>Android Tablet #2</strong><br>
+                        左手（伴奏）<br>
+                        IP: 192.168.1.102
+                    </div>
+                </div>
+            </div>
+
+            <div class="arrow">⬇️</div>
+
+            <div class="layer server-layer">
+                <h3>🖥️ サーバー層 (ラズパイ上)</h3>
+                <div class="grid-2">
+                    <div class="component">
+                        <strong>Node.js Server</strong><br>
+                        ポート: 3000<br>
+                        HTMLファイル配信
+                    </div>
+                    <div class="component">
+                        <strong>WebSocket Server</strong><br>
+                        ポート: 8080<br>
+                        リアルタイム同期
+                    </div>
+                </div>
+            </div>
+
+            <div class="arrow">⬇️</div>
+
+            <div class="layer communication-layer">
+                <h3>🌐 通信層</h3>
+                <div class="grid-3">
+                    <div class="component">
+                        <strong>HTTP通信</strong><br>
+                        HTMLファイル取得<br>
+                        初回ロード時
+                    </div>
+                    <div class="component">
+                        <strong>WebSocket通信</strong><br>
+                        リアルタイム同期<br>
+                        演奏中常時接続
+                    </div>
+                    <div class="component">
+                        <strong>有線LAN</strong><br>
+                        低遅延通信<br>
+                        1-5ms以内
+                    </div>
+                </div>
+            </div>
+
+            <div class="arrow">⬇️</div>
+
+            <div class="layer client-layer">
+                <h3>📱 クライアント層 (タブレット上)</h3>
+                <div class="grid-2">
+                    <div class="component">
+                        <strong>melody.html</strong><br>
+                        右手用UI<br>
+                        主旋律ノーツ表示
+                    </div>
+                    <div class="component">
+                        <strong>accompaniment.html</strong><br>
+                        左手用UI<br>
+                        伴奏ノーツ表示
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="code-section">
+            <h3>📁 正しいファイル構成</h3>
+            <div class="file-tree">
+/home/pi/piano-sync/
+├── server.js                 ← Node.jsサーバー（WebSocket + HTTP）
+├── package.json              ← 依存関係定義
+├── songs/                    ← 楽曲データ
+│   └── demo.json
+└── public/                   ← Webファイル群
+    ├── control.html          ← マスター制御パネル
+    ├── melody.html           ← 右手（主旋律）ディスプレイ
+    ├── accompaniment.html    ← 左手（伴奏）ディスプレイ
+    ├── js/
+    │   ├── piano-client.js   ← タブレット用クライアントJS
+    │   └── piano-sync.js     ← 同期システムJS
+    └── css/
+        └── style.css         ← 共通スタイル
+            </div>
+        </div>
+
+        <div class="code-section">
+            <h3>🔄 動作フロー</h3>
+            
+            <div class="flow-step">
+                <strong>1. 起動フェーズ</strong>
+                <p>ラズパイで <code>node server.js</code> 実行 → HTTPサーバー(3000) + WebSocketサーバー(8080) が起動</p>
+            </div>
+
+            <div class="flow-step">
+                <strong>2. 接続フェーズ</strong>
+                <ul>
+                    <li>右手タブレット: <code>http://192.168.1.100:3000/melody</code> にアクセス</li>
+                    <li>左手タブレット: <code>http://192.168.1.100:3000/accompaniment</code> にアクセス</li>
+                    <li>各タブレットが自動的に <code>ws://192.168.1.100:8080</code> に WebSocket接続</li>
+                </ul>
+            </div>
+
+            <div class="flow-step">
+                <strong>3. 同期フェーズ</strong>
+                <ul>
+                    <li>マスター制御パネルで「演奏開始」ボタン押下</li>
+                    <li>ラズパイが全タブレットに同期開始信号送信</li>
+                    <li>指定時刻（例：100ms後）に全デバイスで同時にアニメーション開始</li>
+                </ul>
+            </div>
+
+            <div class="flow-step">
+                <strong>4. 演奏フェーズ</strong>
+                <ul>
+                    <li>各タブレットが同じタイムラインでノーツを表示</li>
+                    <li>Web Audio API の高精度タイマーで同期維持</li>
+                    <li>リアルタイムでテンポ調整・停止制御</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="code-section">
+            <h3>🔗 コード間の連携</h3>
+            
+            <div class="grid-2">
+                <div>
+                    <h4>server.js (ラズパイ)</h4>
+                    <pre><code>// HTTPサーバーでHTMLファイル配信
+app.get('/melody', (req, res) => {
+  res.sendFile('public/melody.html');
+});
+
+// WebSocketで同期制御
+wss.on('connection', (ws) => {
+  // タブレットとの通信処理
+});</code></pre>
+                </div>
+                <div>
+                    <h4>melody.html (タブレット)</h4>
+                    <pre><code>// WebSocket接続
+const ws = new WebSocket('ws://192.168.1.100:8080');
+
+// 同期信号受信
+ws.onmessage = (event) => {
+  const data = JSON.parse(event.data);
+  if (data.type === 'sync_start') {
+    startAnimation(data.startTime);
+  }
+};</code></pre>
+                </div>
+            </div>
+        </div>
+
+        <div class="solution">
+            <h3>🎯 重要なポイント</h3>
+            <ul>
+                <li><strong>単一サーバー</strong>: ラズパイが HTTP + WebSocket の両方を担当</li>
+                <li><strong>HTMLファイル配信</strong>: タブレットはラズパイから直接HTMLを取得</li>
+                <li><strong>WebSocket常時接続</strong>: 演奏中はリアルタイム通信を維持</li>
+                <li><strong>共通タイムライン</strong>: Web Audio API の時刻を全デバイスで共有</li>
+            </ul>
+        </div>
+
+        <div class="code-section">
+            <h3>📋 次に必要な作業</h3>
+            <ol>
+                <li><strong>統合されたサーバーコード</strong>の作成</li>
+                <li><strong>タブレット用HTMLファイル</strong>の作成</li>
+                <li><strong>WebSocket通信部分</strong>の実装</li>
+                <li><strong>楽曲データ</strong>の準備</li>
+                <li><strong>ラズパイでのテスト</strong>実行</li>
+            </ol>
+        </div>
+
+        <p style="text-align: center; margin-top: 40px; font-size: 18px;">
+            <strong>次のステップ: 完全統合版のコード作成をご希望でしたら、お申し付けください！</strong>
+        </p>
+    </div>
+</body>
+</html>

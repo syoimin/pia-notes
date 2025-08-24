@@ -1,0 +1,553 @@
+// Piano Sync System - Main Server
+// Raspberry Pi マスター制御サーバー
+
+const express = require('express');
+const WebSocket = require('ws');
+const http = require('http');
+const path = require('path');
+const fs = require('fs');
+const compression = require('compression');
+const cors = require('cors');
+
+// GPIO制御 (Raspberry Pi用)
+let GPIO;
+try {
+    GPIO = require('onoff').Gpio;
+    console.log('✅ GPIO module loaded - hardware controls available');
+} catch (error) {
+    console.log('ℹ️  GPIO not available - software controls only');
+    GPIO = null;
+}
+
+class PianoSyncServer {
+    constructor() {
+        this.app = express();
+        this.server = http.createServer(this.app);
+        
+        // サーバー設定
+        this.port = process.env.PORT || 3000;
+        this.wsPort = process.env.WS_PORT || 8080;
+        
+        // 接続管理
+        this.connectedClients = new Map();
+        this.currentSession = null;
+        this.songs = [];
+        
+        // システム状態
+        this.systemStatus = {
+            startTime: Date.now(),
+            isPlaying: false,
+            currentSong: null,
+            bpm: 120
+        };
+
+        this.initialize();
+    }
+
+    async initialize() {
+        try {
+            // 楽曲データ読み込み
+            await this.loadSongs();
+            
+            // Expressサーバー設定
+            this.setupExpress();
+            
+            // WebSocketサーバー設定
+            this.setupWebSocket();
+            
+            // GPIO設定（Raspberry Pi用）
+            this.setupGPIO();
+            
+            // サーバー開始
+            this.startServer();
+            
+        } catch (error) {
+            console.error('❌ Server initialization failed:', error);
+            process.exit(1);
+        }
+    }
+
+    setupExpress() {
+        // ミドルウェア設定
+        this.app.use(compression());
+        this.app.use(cors());
+        this.app.use(express.json());
+        this.app.use(express.urlencoded({ extended: true }));
+
+        // 静的ファイル配信
+        this.app.use(express.static(path.join(__dirname, 'public'), {
+            maxAge: process.env.NODE_ENV === 'production' ? '1d' : '0'
+        }));
+
+        // ルーティング設定
+        this.setupRoutes();
+    }
+
+    setupRoutes() {
+        // メイン制御パネル
+        this.app.get('/', (req, res) => {
+            res.sendFile(path.join(__dirname, 'public', 'control.html'));
+        });
+
+        // 右手（主旋律）ディスプレイ
+        this.app.get('/melody', (req, res) => {
+            res.sendFile(path.join(__dirname, 'public', 'melody.html'));
+        });
+
+        // 左手（伴奏）ディスプレイ
+        this.app.get('/accompaniment', (req, res) => {
+            res.sendFile(path.join(__dirname, 'public', 'accompaniment.html'));
+        });
+
+        // API エンドポイント
+        this.setupAPIRoutes();
+    }
+
+    setupAPIRoutes() {
+        // システム状態取得
+        this.app.get('/api/status', (req, res) => {
+            const clients = Array.from(this.connectedClients.values()).map(client => ({
+                id: client.id,
+                type: client.type,
+                connected: client.connected,
+                latency: client.latency,
+                userAgent: client.userAgent
+            }));
+
+            res.json({
+                system: {
+                    ...this.systemStatus,
+                    uptime: Math.floor((Date.now() - this.systemStatus.startTime) / 1000),
+                    memory: process.memoryUsage(),
+                    localIP: this.getLocalIP()
+                },
+                clients: clients,
+                currentSession: this.currentSession,
+                songs: this.songs.map(s => ({
+                    id: s.id,
+                    title: s.title,
+                    duration: s.duration,
+                    bpm: s.bpm
+                }))
+            });
+        });
+
+        // 楽曲データ取得
+        this.app.get('/api/songs', (req, res) => {
+            res.json(this.songs);
+        });
+
+        // 楽曲詳細取得
+        this.app.get('/api/songs/:id', (req, res) => {
+            const song = this.songs.find(s => s.id === req.params.id);
+            if (song) {
+                res.json(song);
+            } else {
+                res.status(404).json({ error: 'Song not found' });
+            }
+        });
+
+        // 演奏開始
+        this.app.post('/api/start', (req, res) => {
+            const { songId, bpm } = req.body;
+            const result = this.startPerformance(songId, bpm);
+            res.json(result);
+        });
+
+        // 演奏停止
+        this.app.post('/api/stop', (req, res) => {
+            this.stopPerformance();
+            res.json({ success: true, message: 'Performance stopped' });
+        });
+
+        // テンポ変更
+        this.app.post('/api/tempo', (req, res) => {
+            const { bpm } = req.body;
+            this.changeTempo(bpm);
+            res.json({ success: true, bpm: bpm });
+        });
+    }
+
+    setupWebSocket() {
+        this.wss = new WebSocket.Server({ port: this.wsPort });
+        
+        console.log(`🔗 WebSocket server started on port ${this.wsPort}`);
+
+        this.wss.on('connection', (ws, req) => {
+            const clientId = this.generateClientId();
+            const clientInfo = {
+                id: clientId,
+                ws: ws,
+                type: null,
+                connected: Date.now(),
+                latency: 0,
+                userAgent: req.headers['user-agent'] || 'Unknown',
+                ip: req.socket.remoteAddress
+            };
+
+            this.connectedClients.set(clientId, clientInfo);
+            console.log(`📱 Client connected: ${clientId} from ${req.socket.remoteAddress}`);
+
+            // 接続確認メッセージ
+            ws.send(JSON.stringify({
+                type: 'welcome',
+                clientId: clientId,
+                serverTime: Date.now(),
+                message: 'Connected to Piano Sync Server'
+            }));
+
+            // メッセージハンドラー
+            ws.on('message', (message) => {
+                try {
+                    const data = JSON.parse(message);
+                    this.handleClientMessage(clientId, data);
+                } catch (error) {
+                    console.error('Invalid message format:', error);
+                }
+            });
+
+            // 接続終了ハンドラー
+            ws.on('close', () => {
+                this.connectedClients.delete(clientId);
+                console.log(`📱 Client disconnected: ${clientId}`);
+                this.updateLEDStatus();
+            });
+
+            this.updateLEDStatus();
+        });
+    }
+
+    setupGPIO() {
+        if (!GPIO) return;
+
+        try {
+            // 物理ボタン設定
+            this.buttons = {
+                start: new GPIO(18, 'in', 'rising'),
+                stop: new GPIO(23, 'in', 'rising'),
+                next: new GPIO(24, 'in', 'rising'),
+                prev: new GPIO(25, 'in', 'rising')
+            };
+
+            // LED設定
+            this.leds = {
+                status: new GPIO(21, 'out'),
+                sync: new GPIO(20, 'out'),
+                error: new GPIO(16, 'out')
+            };
+
+            // ボタンイベント設定
+            this.buttons.start.watch((err, value) => {
+                if (!err && value === 1) {
+                    this.startPerformance();
+                }
+            });
+
+            this.buttons.stop.watch((err, value) => {
+                if (!err && value === 1) {
+                    this.stopPerformance();
+                }
+            });
+
+            console.log('🔧 GPIO controls initialized');
+        } catch (error) {
+            console.error('GPIO setup failed:', error);
+        }
+    }
+
+    handleClientMessage(clientId, data) {
+        const client = this.connectedClients.get(clientId);
+        if (!client) return;
+
+        switch (data.type) {
+            case 'register':
+                client.type = data.clientType;
+                console.log(`📝 Client ${clientId} registered as ${data.clientType}`);
+                
+                // 登録後に現在の状態を送信
+                if (this.currentSession && this.systemStatus.isPlaying) {
+                    const currentTime = Date.now();
+                    const elapsedTime = (currentTime - this.currentSession.startTime) / 1000;
+                    
+                    client.ws.send(JSON.stringify({
+                        type: 'sync_start',
+                        song: this.songs.find(s => s.id === this.currentSession.songId),
+                        startTime: this.currentSession.startTime,
+                        bpm: this.currentSession.bpm,
+                        serverTime: currentTime,
+                        elapsedTime: elapsedTime
+                    }));
+                }
+                break;
+
+            case 'ping':
+                client.ws.send(JSON.stringify({
+                    type: 'pong',
+                    timestamp: data.timestamp,
+                    serverTime: Date.now()
+                }));
+                break;
+
+            case 'latency_report':
+                client.latency = data.latency;
+                break;
+
+            case 'ready':
+                client.ready = true;
+                this.checkAllClientsReady();
+                break;
+
+            case 'control':
+                this.handleControlMessage(data);
+                break;
+                
+            case 'request_song_data':
+                // 楽曲データリクエスト
+                const songId = data.songId;
+                const song = this.songs.find(s => s.id === songId);
+                if (song) {
+                    client.ws.send(JSON.stringify({
+                        type: 'song_data',
+                        song: song
+                    }));
+                }
+                break;
+        }
+    }
+
+    handleControlMessage(data) {
+        switch (data.action) {
+            case 'start':
+                this.startPerformance(data.songId, data.bpm);
+                break;
+            case 'stop':
+                this.stopPerformance();
+                break;
+            case 'tempo':
+                this.changeTempo(data.bpm);
+                break;
+        }
+    }
+
+    startPerformance(songId = 'demo', bpm = 120) {
+        const song = this.songs.find(s => s.id === songId) || this.songs[0];
+        if (!song) {
+            return { success: false, error: 'No songs available' };
+        }
+
+        // 同期開始時刻計算（100ms後）
+        const startTime = Date.now() + 100;
+
+        this.currentSession = {
+            songId: song.id,
+            startTime: startTime,
+            bpm: bpm,
+            status: 'starting'
+        };
+
+        this.systemStatus.isPlaying = true;
+        this.systemStatus.currentSong = song.id;
+        this.systemStatus.bpm = bpm;
+
+        // 全クライアントに同期開始信号送信
+        this.broadcastToAll({
+            type: 'sync_start',
+            song: song,
+            startTime: startTime,
+            bpm: bpm,
+            serverTime: Date.now()
+        });
+
+        // LED制御
+        if (this.leds) {
+            this.leds.status.writeSync(1);
+            this.leds.sync.writeSync(1);
+        }
+
+        console.log(`🎵 Performance started: ${song.title} at ${bpm} BPM`);
+        return { success: true, song: song, startTime: startTime };
+    }
+
+    stopPerformance() {
+        if (!this.currentSession) return;
+
+        this.broadcastToAll({
+            type: 'sync_stop',
+            serverTime: Date.now()
+        });
+
+        this.currentSession = null;
+        this.systemStatus.isPlaying = false;
+        this.systemStatus.currentSong = null;
+
+        // LED制御
+        if (this.leds) {
+            this.leds.status.writeSync(0);
+            this.leds.sync.writeSync(0);
+        }
+
+        console.log('🛑 Performance stopped');
+    }
+
+    changeTempo(newBpm) {
+        if (this.currentSession) {
+            this.currentSession.bpm = newBpm;
+            this.systemStatus.bpm = newBpm;
+
+            this.broadcastToAll({
+                type: 'tempo_change',
+                bpm: newBpm,
+                serverTime: Date.now()
+            });
+
+            console.log(`🎶 Tempo changed to ${newBpm} BPM`);
+        }
+    }
+
+    broadcastToAll(message) {
+        this.connectedClients.forEach((client) => {
+            if (client.ws.readyState === WebSocket.OPEN) {
+                client.ws.send(JSON.stringify(message));
+            }
+        });
+    }
+
+    async loadSongs() {
+        try {
+            const songsPath = path.join(__dirname, 'songs', 'demo.json');
+            if (fs.existsSync(songsPath)) {
+                const songsData = fs.readFileSync(songsPath, 'utf8');
+                this.songs = JSON.parse(songsData);
+                console.log(`🎼 Loaded ${this.songs.length} songs`);
+            } else {
+                // デフォルト楽曲データ作成
+                this.songs = this.createDefaultSongs();
+                console.log('🎼 Using default songs');
+            }
+        } catch (error) {
+            console.error('Failed to load songs:', error);
+            this.songs = this.createDefaultSongs();
+        }
+    }
+
+    createDefaultSongs() {
+        return [{
+            id: 'demo',
+            title: 'Demo Song - Twinkle Star',
+            duration: 24,
+            bpm: 120,
+            melody: [
+                {time: 0.5, note: 'C5', position: 150, duration: 0.5},
+                {time: 1.0, note: 'C5', position: 150, duration: 0.5},
+                {time: 1.5, note: 'G5', position: 250, duration: 0.5},
+                {time: 2.0, note: 'G5', position: 250, duration: 0.5},
+                {time: 2.5, note: 'A5', position: 270, duration: 0.5},
+                {time: 3.0, note: 'A5', position: 270, duration: 0.5},
+                {time: 3.5, note: 'G5', position: 250, duration: 1.0},
+                {time: 4.5, note: 'F5', position: 230, duration: 0.5},
+                {time: 5.0, note: 'F5', position: 230, duration: 0.5},
+                {time: 5.5, note: 'E5', position: 210, duration: 0.5},
+                {time: 6.0, note: 'E5', position: 210, duration: 0.5},
+                {time: 6.5, note: 'D5', position: 190, duration: 0.5},
+                {time: 7.0, note: 'D5', position: 190, duration: 0.5},
+                {time: 7.5, note: 'C5', position: 150, duration: 1.0}
+            ],
+            accompaniment: [
+                {time: 0.5, note: 'C3', position: 150, duration: 1.0},
+                {time: 1.5, note: 'G3', position: 250, duration: 1.0},
+                {time: 2.5, note: 'F3', position: 230, duration: 1.0},
+                {time: 3.5, note: 'C3', position: 150, duration: 1.0},
+                {time: 4.5, note: 'F3', position: 230, duration: 1.0},
+                {time: 5.5, note: 'C3', position: 150, duration: 1.0},
+                {time: 6.5, note: 'G3', position: 250, duration: 1.0},
+                {time: 7.5, note: 'C3', position: 150, duration: 1.0}
+            ]
+        }];
+    }
+
+    checkAllClientsReady() {
+        const clients = Array.from(this.connectedClients.values());
+        const readyClients = clients.filter(c => c.ready);
+        
+        if (readyClients.length >= 2) {
+            console.log('✅ All clients ready for synchronization');
+        }
+    }
+
+    updateLEDStatus() {
+        if (!this.leds) return;
+        
+        const clientCount = this.connectedClients.size;
+        this.leds.sync.writeSync(clientCount >= 2 ? 1 : 0);
+    }
+
+    generateClientId() {
+        return 'client_' + Math.random().toString(36).substr(2, 9) + '_' + Date.now();
+    }
+
+    getLocalIP() {
+        const { networkInterfaces } = require('os');
+        const nets = networkInterfaces();
+        
+        for (const name of Object.keys(nets)) {
+            for (const net of nets[name]) {
+                if (net.family === 'IPv4' && !net.internal) {
+                    return net.address;
+                }
+            }
+        }
+        return 'localhost';
+    }
+
+    startServer() {
+        this.server.listen(this.port, '0.0.0.0', () => {
+            const localIP = this.getLocalIP();
+            console.log('\n🎹 Piano Sync Server Started Successfully!');
+            console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+            console.log(`🖥️  Control Panel:    http://${localIP}:${this.port}/`);
+            console.log(`🎼 Right Hand (Melody): http://${localIP}:${this.port}/melody`);
+            console.log(`🎵 Left Hand (Accomp):  http://${localIP}:${this.port}/accompaniment`);
+            console.log(`🔗 WebSocket:           ws://${localIP}:${this.wsPort}`);
+            console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+        });
+    }
+
+    // クリーンアップ処理
+    cleanup() {
+        console.log('\n🛑 Shutting down Piano Sync Server...');
+        
+        if (this.buttons) {
+            Object.values(this.buttons).forEach(button => button.unexport());
+        }
+        if (this.leds) {
+            Object.values(this.leds).forEach(led => {
+                led.writeSync(0);
+                led.unexport();
+            });
+        }
+        
+        if (this.wss) {
+            this.wss.close();
+        }
+        
+        if (this.server) {
+            this.server.close();
+        }
+    }
+}
+
+// サーバー起動
+const pianoServer = new PianoSyncServer();
+
+// 終了処理
+process.on('SIGINT', () => {
+    pianoServer.cleanup();
+    process.exit(0);
+});
+
+process.on('SIGTERM', () => {
+    pianoServer.cleanup();
+    process.exit(0);
+});
+
+module.exports = PianoSyncServer;
