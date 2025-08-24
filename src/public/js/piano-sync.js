@@ -176,37 +176,26 @@ class PianoSyncCore {
         this.currentSong = data.song;
         this.bpm = data.bpm;
         
-        // サーバー時刻を基準に開始時刻を計算
-        const serverTime = data.serverTime;
-        const localTime = Date.now();
-        const networkDelay = this.latency / 2;
-        
-        // 同期補正
-        this.serverTimeOffset = serverTime - localTime + networkDelay;
+        // 現在時刻を基準に開始時刻を設定
+        const currentTime = performance.now();
         
         // 既に開始済みの場合（途中参加）
         if (data.elapsedTime && data.elapsedTime > 0) {
-            this.startTime = localTime - (data.elapsedTime * 1000);
+            this.startTime = currentTime - (data.elapsedTime * 1000);
+            console.log(`⏰ Joining mid-performance: elapsed=${data.elapsedTime}s, startTime=${this.startTime}`);
             this.startPerformance();
         } else {
-            // 新規開始
-            this.startTime = data.startTime + this.serverTimeOffset;
-            const delay = this.startTime - this.getCurrentTime();
-            
-            if (delay > 0) {
-                setTimeout(() => {
-                    this.startPerformance();
-                }, delay);
-            } else {
-                this.startPerformance();
-            }
+            // 新規開始 - すぐに開始
+            this.startTime = currentTime;
+            console.log(`⏰ New performance start: startTime=${this.startTime}`);
+            this.startPerformance();
         }
         
         this.emit('syncStart', {
             song: this.currentSong,
             startTime: this.startTime,
-            bmp: this.bpm,
-            delay: data.elapsedTime ? 0 : (this.startTime - this.getCurrentTime())
+            bpm: this.bpm,
+            delay: 0
         });
     }
 
@@ -229,12 +218,19 @@ class PianoSyncCore {
 
     startPerformance() {
         if (!this.currentSong) {
-            console.error('No song data available');
+            console.error('❌ Cannot start performance - no song data');
             return;
         }
 
         this.isPlaying = true;
         console.log('🎹 Performance started');
+        console.log('Song data:', {
+            id: this.currentSong.id,
+            title: this.currentSong.title,
+            duration: this.currentSong.duration,
+            melodyNotes: this.currentSong.melody?.length || 0,
+            accompanimentNotes: this.currentSong.accompaniment?.length || 0
+        });
         
         this.emit('performanceStart', {
             song: this.currentSong,
@@ -283,15 +279,31 @@ class PianoSyncCore {
     }
 
     getCurrentTime() {
-        if (this.audioContext && this.audioContext.state === 'running') {
-            return this.audioContext.currentTime * 1000; // msに変換
-        }
+        // 常にperformance.nowを使用（ミリ秒）
         return performance.now();
     }
 
     getMusicTime() {
-        if (!this.isPlaying || !this.startTime) return 0;
-        return (this.getCurrentTime() - this.startTime) / 1000; // 秒に変換
+        if (!this.isPlaying || !this.startTime) {
+            console.log(`🕐 getMusicTime: Not playing (isPlaying: ${this.isPlaying}, startTime: ${this.startTime})`);
+            return 0;
+        }
+        
+        const currentTime = this.getCurrentTime();
+        const musicTime = (currentTime - this.startTime) / 1000; // 秒に変換
+        
+        if (musicTime < 0) {
+            console.log(`⏰ Music time is negative: ${musicTime.toFixed(3)}s (current: ${currentTime}, start: ${this.startTime})`);
+            return 0;
+        }
+        
+        // 正常な音楽時刻の場合のみ定期ログ
+        if (Math.floor(musicTime * 10) !== Math.floor((this.lastLoggedTime || 0) * 10)) {
+            console.log(`🎵 Music time: ${musicTime.toFixed(2)}s`);
+            this.lastLoggedTime = musicTime;
+        }
+        
+        return musicTime;
     }
 
     getServerTime() {

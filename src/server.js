@@ -335,8 +335,8 @@ class PianoSyncServer {
             return { success: false, error: 'No songs available' };
         }
 
-        // 同期開始時刻計算（100ms後）
-        const startTime = Date.now() + 100;
+        // 現在時刻を使用（Date.nowではなくperformance.nowベース）
+        const startTime = Date.now();
 
         this.currentSession = {
             songId: song.id,
@@ -355,7 +355,8 @@ class PianoSyncServer {
             song: song,
             startTime: startTime,
             bpm: bpm,
-            serverTime: Date.now()
+            serverTime: startTime,
+            elapsedTime: 0 // 新規開始なので0
         });
 
         // LED制御
@@ -364,7 +365,7 @@ class PianoSyncServer {
             this.leds.sync.writeSync(1);
         }
 
-        console.log(`🎵 Performance started: ${song.title} at ${bpm} BPM`);
+        console.log(`🎵 Performance started: ${song.title} at ${bpm} BPM (startTime: ${startTime})`);
         return { success: true, song: song, startTime: startTime };
     }
 
