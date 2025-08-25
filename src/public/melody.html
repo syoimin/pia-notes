@@ -4,22 +4,51 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>🎼 Piano Melody Display</title>
-    <link rel="stylesheet" href="/css/style.css">
     <style>
-        body {
+        /* リセットと基本設定 */
+        * {
             margin: 0;
             padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --primary-color: #2196F3;
+            --secondary-color: #4CAF50;
+            --accent-color: #FF9800;
+            --danger-color: #f44336;
+            --dark-bg: #1a1a1a;
+            --card-bg: #2a2a2a;
+            --text-primary: #ffffff;
+            --text-secondary: #cccccc;
+            --border-color: #444;
+            --success-color: #4CAF50;
+            --warning-color: #FF9800;
+            --shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+            --shadow-hover: 0 8px 15px rgba(0, 0, 0, 0.4);
+            --border-radius: 8px;
+            --transition: all 0.3s ease;
+        }
+
+        html, body {
+            height: 100%;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background: linear-gradient(135deg, #1976D2, #1a1a1a);
+            color: var(--text-primary);
             overflow: hidden;
             user-select: none;
             touch-action: manipulation;
+            line-height: 1.6;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
         }
 
+        /* ピアノディスプレイ */
         .piano-display {
             position: relative;
             width: 100vw;
             height: 100vh;
-            border-left: 6px solid #2196F3;
+            border-left: 6px solid var(--primary-color);
         }
 
         .hand-label {
@@ -31,7 +60,7 @@
             opacity: 0.1;
             pointer-events: none;
             z-index: 1;
-            color: #2196F3;
+            color: var(--primary-color);
             font-weight: bold;
         }
 
@@ -45,6 +74,7 @@
             z-index: 10;
         }
 
+        /* ノーツ */
         .note {
             position: absolute;
             border-radius: 50%;
@@ -59,7 +89,7 @@
             width: 55px;
             height: 55px;
             font-size: 16px;
-            background: linear-gradient(135deg, #2196F3, #1976D2);
+            background: linear-gradient(135deg, var(--primary-color), #1976D2);
         }
 
         .note:hover {
@@ -69,7 +99,7 @@
 
         .note.active {
             animation: noteHit 0.4s ease-out;
-            background: linear-gradient(135deg, #FF9800, #F57C00);
+            background: linear-gradient(135deg, var(--accent-color), #F57C00);
             box-shadow: 0 0 20px rgba(255, 152, 0, 0.8);
         }
 
@@ -90,6 +120,7 @@
             box-shadow: 0 2px 4px rgba(0,0,0,0.3);
         }
 
+        /* ステータス表示 */
         .connection-status {
             position: absolute;
             top: 20px;
@@ -103,6 +134,30 @@
             backdrop-filter: blur(10px);
         }
 
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+
+        .status-online {
+            background: var(--success-color);
+            box-shadow: 0 0 6px var(--success-color);
+        }
+
+        .status-offline {
+            background: var(--danger-color);
+            box-shadow: 0 0 6px var(--danger-color);
+        }
+
+        .status-connecting {
+            background: var(--warning-color);
+            box-shadow: 0 0 6px var(--warning-color);
+            animation: pulse 2s infinite;
+        }
+
         .bpm-display {
             position: absolute;
             top: 20px;
@@ -114,9 +169,10 @@
             font-weight: bold;
             z-index: 25;
             backdrop-filter: blur(10px);
-            color: #2196F3;
+            color: var(--primary-color);
         }
 
+        /* タイムライン */
         .timeline {
             position: absolute;
             top: 0;
@@ -129,12 +185,13 @@
 
         .timeline-progress {
             height: 100%;
-            background: linear-gradient(90deg, #2196F3, #00BCD4);
+            background: linear-gradient(90deg, var(--primary-color), #00BCD4);
             width: 0%;
             transition: width 0.1s linear;
             box-shadow: 0 0 10px rgba(33, 150, 243, 0.5);
         }
 
+        /* 鍵盤ガイド */
         .keyboard-guide {
             position: absolute;
             bottom: 20px;
@@ -151,7 +208,6 @@
             max-width: 95vw;
         }
 
-        /* 88鍵用のキーサイズ調整 */
         .key {
             transition: all 0.15s ease;
             cursor: pointer;
@@ -195,11 +251,12 @@
         }
 
         .key.active {
-            background: linear-gradient(to bottom, #2196F3, #1976D2) !important;
+            background: linear-gradient(to bottom, var(--primary-color), #1976D2) !important;
             transform: translateY(3px);
             box-shadow: 0 1px 3px rgba(0,0,0,0.8);
         }
 
+        /* 楽曲情報 */
         .song-info {
             position: absolute;
             top: 90px;
@@ -222,9 +279,10 @@
             font-size: 18px;
             font-weight: bold;
             margin-bottom: 5px;
-            color: #2196F3;
+            color: var(--primary-color);
         }
 
+        /* ローディング */
         .loading-overlay {
             position: absolute;
             top: 0;
@@ -244,12 +302,13 @@
             width: 60px;
             height: 60px;
             border: 6px solid rgba(33, 150, 243, 0.3);
-            border-top: 6px solid #2196F3;
+            border-top: 6px solid var(--primary-color);
             border-radius: 50%;
             animation: spin 1s linear infinite;
             margin-bottom: 20px;
         }
 
+        /* エラーメッセージ */
         .error-message {
             position: absolute;
             top: 50%;
@@ -264,16 +323,37 @@
             display: none;
         }
 
-        /* オクターブラベル */
-        .octave-label {
-            position: absolute;
-            bottom: -30px;
-            left: 0;
-            font-size: 12px;
-            color: rgba(255,255,255,0.6);
-            font-weight: bold;
+        /* ボタン */
+        .btn {
+            display: inline-block;
+            padding: 12px 24px;
+            border: none;
+            border-radius: var(--border-radius);
+            font-size: 16px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: var(--transition);
+            text-decoration: none;
+            text-align: center;
+            user-select: none;
+            outline: none;
         }
 
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-hover);
+        }
+
+        .btn-primary {
+            background: var(--primary-color);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #1976D2;
+        }
+
+        /* アニメーション */
         @keyframes spin {
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
@@ -290,7 +370,7 @@
             50% { opacity: 0.5; }
         }
 
-        /* モバイル対応 */
+        /* レスポンシブデザイン */
         @media (max-width: 1024px) {
             .key.white {
                 width: 22px;
@@ -330,6 +410,10 @@
             .bpm-display {
                 padding: 8px 15px;
                 font-size: 16px;
+            }
+
+            .hand-label {
+                font-size: 2.5rem;
             }
         }
 
