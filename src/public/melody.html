@@ -35,12 +35,14 @@
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background: linear-gradient(135deg, #1976D2, #1a1a1a);
             color: var(--text-primary);
-            overflow: hidden;
+            overflow-x: auto; /* 横スクロールを許可 */
+            overflow-y: hidden; /* 縦スクロールは無効のまま */
             user-select: none;
             touch-action: manipulation;
             line-height: 1.6;
             -webkit-font-smoothing: antialiased;
             -moz-osx-font-smoothing: grayscale;
+            min-width: 100vw; /* 最小幅を設定 */
         }
 
         /* ピアノディスプレイ */
@@ -49,6 +51,7 @@
             width: 100vw;
             height: 100vh;
             border-left: 6px solid var(--primary-color);
+            min-width: 100vw; /* 最小幅を確保 */
         }
 
         .hand-label {
@@ -204,8 +207,9 @@
             background: rgba(0,0,0,0.5);
             border-radius: 15px;
             backdrop-filter: blur(10px);
-            overflow-x: auto;
-            max-width: 95vw;
+            /* overflow-x: auto; を削除 */
+            /* max-width: 95vw; を削除してブラウザ全体がスクロールするように */
+            white-space: nowrap; /* 鍵盤が折り返さないように */
         }
 
         .key {
