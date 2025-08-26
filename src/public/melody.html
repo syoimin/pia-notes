@@ -220,33 +220,33 @@
         }
 
         .key.white {
-            width: 28px;
-            height: 120px;
+            width: 40px;            /* 一般的なピアノサイズに基づく固定幅 */
+            height: 160px;          /* 一般的な比率に基づく固定高さ */
             background: linear-gradient(to bottom, #ffffff, #f5f5f5);
             border: 1px solid #ddd;
-            border-radius: 0 0 4px 4px;
-            font-size: 10px;
+            border-radius: 0 0 6px 6px;
+            font-size: 11px;
             color: #666;
             display: flex;
             align-items: flex-end;
             justify-content: center;
-            padding-bottom: 5px;
+            padding-bottom: 6px;
         }
 
         .key.black {
-            width: 18px;
-            height: 80px;
+            width: 24px;            /* 一般的なピアノサイズに基づく固定幅 */
+            height: 100px;          /* 白鍵の約62.5%の高さ */
             background: linear-gradient(to bottom, #333, #111);
-            margin: 0 -9px;
+            margin: 0 -12px;        /* 幅の半分をマイナスマージン */
             z-index: 21;
             position: relative;
-            border-radius: 0 0 3px 3px;
-            font-size: 8px;
+            border-radius: 0 0 4px 4px;
+            font-size: 9px;
             color: #ccc;
             display: flex;
             align-items: flex-end;
             justify-content: center;
-            padding-bottom: 3px;
+            padding-bottom: 4px;
         }
 
         .key:hover {
@@ -374,36 +374,11 @@
             50% { opacity: 0.5; }
         }
 
-        /* レスポンシブデザイン */
-        @media (max-width: 1024px) {
-            .key.white {
-                width: 22px;
-                height: 100px;
-                font-size: 8px;
-                padding-bottom: 3px;
-            }
-            
-            .key.black {
-                width: 14px;
-                height: 65px;
-                margin: 0 -7px;
-                font-size: 6px;
-            }
-        }
-
+        /* レスポンシブデザインを削除 - 固定サイズを維持 */
+        /* ピアノ鍵盤は画面サイズに関係なく実際のピアノサイズを維持 */
+        
+        /* その他の要素のみモバイル対応 */
         @media (max-width: 768px) {
-            .key.white {
-                width: 16px;
-                height: 80px;
-                font-size: 7px;
-            }
-            
-            .key.black {
-                width: 10px;
-                height: 50px;
-                margin: 0 -5px;
-            }
-            
             .note {
                 width: 35px;
                 height: 35px;
@@ -418,22 +393,6 @@
 
             .hand-label {
                 font-size: 2.5rem;
-            }
-        }
-
-        /* 高解像度ディスプレイ対応 */
-        @media (min-width: 1920px) {
-            .key.white {
-                width: 35px;
-                height: 140px;
-                font-size: 12px;
-            }
-            
-            .key.black {
-                width: 22px;
-                height: 95px;
-                margin: 0 -11px;
-                font-size: 9px;
             }
         }
     </style>
