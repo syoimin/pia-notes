@@ -198,8 +198,7 @@
         .keyboard-guide {
             position: absolute;
             bottom: 20px;
-            left: 50%;
-            transform: translateX(-50%);
+            left: 20px;              /* 左端から20pxの位置に固定 */
             display: flex;
             gap: 1px;
             z-index: 20;
@@ -207,9 +206,7 @@
             background: rgba(0,0,0,0.5);
             border-radius: 15px;
             backdrop-filter: blur(10px);
-            /* overflow-x: auto; を削除 */
-            /* max-width: 95vw; を削除してブラウザ全体がスクロールするように */
-            white-space: nowrap; /* 鍵盤が折り返さないように */
+            white-space: nowrap;     /* 鍵盤が折り返さないように */
         }
 
         .key {
