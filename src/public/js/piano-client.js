@@ -55,7 +55,7 @@ class PianoClient {
             // タッチ/クリック対応
             this.setupInteraction();
 
-            console.log(`🎹 Piano Client (${this.clientType}) initialized`);
+            // console.log(`🎹 Piano Client (${this.clientType}) initialized`);
         } catch (error) {
             console.error('Failed to initialize Piano Client:', error);
         }
@@ -136,7 +136,7 @@ class PianoClient {
             }
         });
 
-        console.log(`🎹 Created 88-key keyboard with ${keys.length} keys`);
+        // console.log(`🎹 Created 88-key keyboard with ${keys.length} keys`);
     }
 
     generate88Keys() {
@@ -322,10 +322,10 @@ class PianoClient {
     }
 
     startPerformance(data) {
-        console.log(`🎵 Starting ${this.clientType} performance`);
-        console.log('Song data:', data.song);
-        console.log(`Notes for ${this.clientType}:`, data.song[this.clientType]);
-        
+        // console.log(`🎵 Starting ${this.clientType} performance`);
+        // console.log('Song data:', data.song);
+        // console.log(`Notes for ${this.clientType}:`, data.song[this.clientType]);
+
         this.currentSong = data.song;
         this.updateBPM(data.bpm);
         this.clearNotes();
@@ -421,7 +421,7 @@ class PianoClient {
         
         // 10フレームごとにログ出力
         if (this.frameCount % 10 === 0) {
-            console.log(`🎬 Frame ${this.frameCount}: updateNotes called - Time: ${currentTime.toFixed(2)}s, Notes: ${notes.length}`);
+            // console.log(`🎬 Frame ${this.frameCount}: updateNotes called - Time: ${currentTime.toFixed(2)}s, Notes: ${notes.length}`);
         }
         
         // 既存ノーツの位置を更新
@@ -439,7 +439,7 @@ class PianoClient {
         // DOM内のノーツ要素数を確認
         const domNotes = this.notesContainer.querySelectorAll('.note');
         if (this.frameCount % 30 === 0) { // 30フレームごと
-            console.log(`📊 Stats: activeNotes=${this.activeNotes.size}, DOM notes=${domNotes.length}`);
+            // console.log(`📊 Stats: activeNotes=${this.activeNotes.size}, DOM notes=${domNotes.length}`);
         }
     }
 
@@ -447,7 +447,7 @@ class PianoClient {
         const containerHeight = this.container.clientHeight;
         let updatedCount = 0;
         
-        console.log(`🔄 updateExistingNotes called - Active notes: ${this.activeNotes.size}`);
+        // console.log(`🔄 updateExistingNotes called - Active notes: ${this.activeNotes.size}`);
         
         this.activeNotes.forEach((noteElement, noteId) => {
             const parts = noteId.split('_');
@@ -485,13 +485,13 @@ class PianoClient {
         });
         
         if (updatedCount > 0) {
-            console.log(`✅ Updated ${updatedCount} existing notes`);
+            // console.log(`✅ Updated ${updatedCount} existing notes`);
         }
     }
 
     addNewNotes(notes, currentTime) {
         let addedCount = 0;
-        console.log(`🆕 addNewNotes called - Total notes: ${notes.length}, Current time: ${currentTime.toFixed(2)}s`);
+        // console.log(`🆕 addNewNotes called - Total notes: ${notes.length}, Current time: ${currentTime.toFixed(2)}s`);
         
         notes.forEach((noteData, index) => {
             const timeUntilNote = noteData.time - currentTime;
@@ -499,13 +499,13 @@ class PianoClient {
             
             // 新しいノーツで、表示範囲内の場合
             if (timeUntilNote > 0 && timeUntilNote <= this.options.lookAhead && !this.activeNotes.has(noteId)) {
-                console.log(`➕ Adding new note: ${noteData.note} at ${noteData.time}s (${timeUntilNote.toFixed(2)}s until)`);
+                // console.log(`➕ Adding new note: ${noteData.note} at ${noteData.time}s (${timeUntilNote.toFixed(2)}s until)`);
                 this.createNoteElement(noteData, timeUntilNote, index);
                 addedCount++;
             }
         });
         
-        console.log(`✅ Added ${addedCount} new notes`);
+        // console.log(`✅ Added ${addedCount} new notes`);
     }
 
     removeOffscreenNotes() {
@@ -518,7 +518,7 @@ class PianoClient {
             if (rect.top > containerHeight + 50) {
                 noteElement.remove();
                 this.activeNotes.delete(noteId);
-                console.log(`🗑️ Removed offscreen note: ${noteId}`);
+                // console.log(`🗑️ Removed offscreen note: ${noteId}`);
             }
         });
     }
@@ -529,7 +529,7 @@ class PianoClient {
             
             // ヒットタイミングのチェック
             if (Math.abs(timeUntilNote) < 0.1) {
-                console.log(`🎯 Hit timing for note: ${noteData.note}`);
+                // console.log(`🎯 Hit timing for note: ${noteData.note}`);
                 this.highlightKey(noteData.note);
                 
                 // 自動演奏音を出す
@@ -552,7 +552,7 @@ class PianoClient {
         const topPosition = Math.max(0, progress * (containerHeight - 200));
         const leftPosition = this.calculateNotePosition(noteData);
         
-        console.log(`📍 Creating note ${noteData.note}: progress=${progress.toFixed(2)}, top=${topPosition}px, left=${leftPosition}px`);
+        // console.log(`📍 Creating note ${noteData.note}: progress=${progress.toFixed(2)}, top=${topPosition}px, left=${leftPosition}px`);
         
         // スタイル設定
         note.style.cssText = `
@@ -600,13 +600,13 @@ class PianoClient {
         this.notesContainer.appendChild(note);
         this.activeNotes.set(note.dataset.noteId, note);
         
-        console.log(`✅ Note element created and added to DOM: ${noteData.note}`);
+        // console.log(`✅ Note element created and added to DOM: ${noteData.note}`);
     }
 
     calculateNotePosition(noteData) {
         // positionプロパティがある場合はそれを使用
         if (noteData.position !== undefined) {
-            console.log(`Using provided position: ${noteData.position}px for note ${noteData.note}`);
+            // console.log(`Using provided position: ${noteData.position}px for note ${noteData.note}`);
             return noteData.position;
         }
 
@@ -615,7 +615,7 @@ class PianoClient {
         const position = keyPositions[noteData.note];
         
         if (position !== undefined) {
-            console.log(`Note ${noteData.note} mapped to position: ${position}px`);
+            // console.log(`Note ${noteData.note} mapped to position: ${position}px`);
             return position;
         }
         
@@ -804,7 +804,7 @@ class PianoClient {
             oscillator.start(now);
             oscillator.stop(now + 0.8);
             
-            console.log(`🎵 Played note: ${noteName} (${frequency.toFixed(2)}Hz)`);
+            // console.log(`🎵 Played note: ${noteName} (${frequency.toFixed(2)}Hz)`);
         } catch (error) {
             console.log('Sound play failed:', error);
         }
@@ -832,8 +832,8 @@ class PianoClient {
 
     // デバッグ用: 強制的にテストノーツを作成
     createTestNote() {
-        console.log('🧪 Creating test note for debugging');
-        
+        // console.log('🧪 Creating test note for debugging');
+
         const testNote = document.createElement('div');
         testNote.className = 'note test';
         testNote.textContent = 'TEST';
@@ -882,8 +882,8 @@ class PianoClient {
         if (this.syncCore) {
             this.syncCore.disconnect();
         }
-        
-        console.log(`🔌 Piano Client (${this.clientType}) destroyed`);
+
+        // console.log(`🔌 Piano Client (${this.clientType}) destroyed`);
     }
 }
 
