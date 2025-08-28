@@ -78,45 +78,58 @@
             min-width: 100vw; /* 最小幅を確保 */
         }
 
-        /* ノーツ */
+        /* ノーツ - 縦棒形に変更 */
         .note {
             position: absolute;
-            border-radius: 50%;
+            border-radius: 4px;
             display: flex;
-            align-items: center;
+            align-items: flex-end;
             justify-content: center;
             font-weight: bold;
             color: white;
             box-shadow: 0 4px 12px rgba(33, 150, 243, 0.4);
             transition: all 0.1s ease;
             cursor: pointer;
-            width: 55px;
-            height: 55px;
-            font-size: 16px;
-            background: linear-gradient(135deg, var(--primary-color), #1976D2);
+            font-size: 12px;
+            background: linear-gradient(180deg, var(--primary-color), #1976D2);
+            padding-bottom: 4px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+        }
+
+        /* 白鍵用ノーツ */
+        .note.white-key-note {
+            width: 40px; /* 白鍵と同じ幅 */
+            background: linear-gradient(180deg, var(--primary-color), #1976D2);
+        }
+
+        /* 黒鍵用ノーツ */
+        .note.black-key-note {
+            width: 24px; /* 黒鍵と同じ幅 */
+            background: linear-gradient(180deg, #FF6B35, #D84315);
+            border: 2px solid rgba(255, 255, 255, 0.4);
         }
 
         .note:hover {
-            transform: scale(1.1);
+            transform: scale(1.05);
             box-shadow: 0 6px 16px rgba(33, 150, 243, 0.6);
         }
 
         .note.active {
             animation: noteHit 0.4s ease-out;
-            background: linear-gradient(135deg, var(--accent-color), #F57C00);
+            background: linear-gradient(180deg, var(--accent-color), #F57C00);
             box-shadow: 0 0 20px rgba(255, 152, 0, 0.8);
         }
 
         .finger-indicator {
             position: absolute;
-            top: -12px;
-            right: -12px;
-            width: 24px;
-            height: 24px;
+            top: 2px;
+            right: 2px;
+            width: 18px;
+            height: 18px;
             background: rgba(255, 255, 255, 0.95);
             color: #1976D2;
             border-radius: 50%;
-            font-size: 14px;
+            font-size: 11px;
             font-weight: bold;
             display: flex;
             align-items: center;
@@ -364,8 +377,8 @@
 
         @keyframes noteHit {
             0% { transform: scale(1); }
-            50% { transform: scale(1.4); }
-            100% { transform: scale(1.2); }
+            50% { transform: scale(1.1) translateY(-5px); }
+            100% { transform: scale(1.05) translateY(0px); }
         }
 
         @keyframes pulse {
@@ -379,9 +392,7 @@
         /* その他の要素のみモバイル対応 */
         @media (max-width: 768px) {
             .note {
-                width: 35px;
-                height: 35px;
-                font-size: 12px;
+                font-size: 10px;
             }
             
             .connection-status,
@@ -467,6 +478,12 @@
             // オクターブ8 (C8)
             'C8': 88
         };
+
+        // 白鍵かどうかを判定する関数
+        function isWhiteKey(noteName) {
+            const baseNote = noteName.replace(/[0-9]/g, '');
+            return ['A', 'B', 'C', 'D', 'E', 'F', 'G'].includes(baseNote);
+        }
 
         // 鍵盤番号からピクセル位置を計算する関数（修正版）
         function getKeyPixelPosition(keyNumber) {
@@ -563,6 +580,9 @@
                         return absolutePosition;
                     };
 
+                    // ノート作成メソッドもオーバーライド
+                    this.pianoClient.createNoteElement = this.createVerticalNoteElement.bind(this);
+
                     // 追加のイベントハンドラーのみ設定
                     this.setupAdditionalHandlers();
                     
@@ -570,6 +590,75 @@
                     console.error('Failed to initialize Melody Display:', error);
                     this.showError('初期化に失敗しました: ' + error.message);
                 }
+            }
+
+            // 縦棒ノーツを作成するメソッド
+            createVerticalNoteElement(noteData, timeUntilNote, index) {
+                const note = document.createElement('div');
+                const isWhite = isWhiteKey(noteData.note);
+                note.className = `note ${this.pianoClient.clientType} ${isWhite ? 'white-key-note' : 'black-key-note'}`;
+                note.textContent = noteData.note.replace(/[0-9]/g, ''); // オクターブ番号を削除
+                note.dataset.noteId = `${noteData.note}_${noteData.time}_${index}`;
+                
+                // 位置計算の詳細ログ
+                const containerHeight = this.pianoClient.container.clientHeight;
+                const progress = (this.pianoClient.options.lookAhead - timeUntilNote) / this.pianoClient.options.lookAhead;
+                const topPosition = Math.max(0, progress * (containerHeight - 200));
+                const leftPosition = this.pianoClient.calculateNotePosition(noteData);
+                
+                // 縦棒の高さを音符の長さに応じて計算
+                const noteHeight = Math.max(30, (noteData.duration || 0.5) * 100); // 最小30px、1秒=100px
+                
+                console.log(`📍 Creating vertical note ${noteData.note}: height=${noteHeight}px, top=${topPosition}px, left=${leftPosition}px, duration=${noteData.duration}s`);
+                
+                // スタイル設定
+                note.style.cssText = `
+                    position: absolute;
+                    top: ${topPosition}px;
+                    left: ${leftPosition - (isWhite ? 20 : 12)}px;
+                    width: ${isWhite ? 40 : 24}px;
+                    height: ${noteHeight}px;
+                    border-radius: 4px;
+                    background: ${isWhite ? 'linear-gradient(180deg, #2196F3, #1976D2)' : 'linear-gradient(180deg, #FF6B35, #D84315)'};
+                    color: white;
+                    display: flex;
+                    align-items: flex-end;
+                    justify-content: center;
+                    font-weight: bold;
+                    font-size: 12px;
+                    box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+                    z-index: 10;
+                    transition: transform 0.1s ease;
+                    border: 2px solid rgba(255,255,255,0.3);
+                    padding-bottom: 4px;
+                `;
+                
+                // 指番号表示
+                if (noteData.finger) {
+                    const fingerIndicator = document.createElement('span');
+                    fingerIndicator.textContent = noteData.finger;
+                    fingerIndicator.style.cssText = `
+                        position: absolute;
+                        top: 2px;
+                        right: 2px;
+                        width: 18px;
+                        height: 18px;
+                        background: rgba(255,255,255,0.9);
+                        color: #333;
+                        border-radius: 50%;
+                        font-size: 11px;
+                        font-weight: bold;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                    `;
+                    note.appendChild(fingerIndicator);
+                }
+                
+                this.pianoClient.notesContainer.appendChild(note);
+                this.pianoClient.activeNotes.set(note.dataset.noteId, note);
+                
+                console.log(`✅ Vertical note element created and added to DOM: ${noteData.note}`);
             }
 
             createKeyboard() {
@@ -625,9 +714,11 @@
 
             setupAdditionalHandlers() {
                 // melody.html固有の処理のみ
-                this.pianoClient.syncCore.on('syncStart', (data) => {
-                    this.showSongInfo(data.song);
-                });
+                if (this.pianoClient.syncCore) {
+                    this.pianoClient.syncCore.on('syncStart', (data) => {
+                        this.showSongInfo(data.song);
+                    });
+                }
 
                 // ページ固有のエラーハンドリング
                 window.addEventListener('unhandledrejection', (event) => {
@@ -641,6 +732,13 @@
                         this.adjustNotesContainerWidth();
                     }, 100);
                 });
+            }
+
+            adjustNotesContainerWidth() {
+                // リサイズ時のノーツコンテナ調整処理
+                if (this.pianoClient) {
+                    this.pianoClient.clearNotes();
+                }
             }
 
             showSongInfo(song) {
