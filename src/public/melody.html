@@ -446,9 +446,9 @@
     <script src="/js/piano-sync.js"></script>
     <script src="/js/piano-client.js"></script>
     <script>
-        // ノート名から鍵盤位置への変換テーブル
+        // ノート名から鍵盤位置への変換テーブル（修正版）
         const NOTE_TO_KEY_MAP = {
-            // オクターブ0 (A0-B0)
+            // 正確な88鍵の順序
             'A0': 1, 'A#0': 2, 'Bb0': 2, 'B0': 3,
             // オクターブ1 (C1-B1)
             'C1': 4, 'C#1': 5, 'Db1': 5, 'D1': 6, 'D#1': 7, 'Eb1': 7, 'E1': 8, 'F1': 9, 'F#1': 10, 'Gb1': 10, 'G1': 11, 'G#1': 12, 'Ab1': 12, 'A1': 13, 'A#1': 14, 'Bb1': 14, 'B1': 15,
@@ -468,61 +468,31 @@
             'C8': 88
         };
 
-        // 鍵盤番号からピクセル位置を計算する関数
+        // 鍵盤番号からピクセル位置を計算する関数（修正版）
         function getKeyPixelPosition(keyNumber) {
-            // 88鍵ピアノの鍵盤配置を正確に計算
-            const whiteKeyWidth = 40;
-            const keyboardGuideLeftOffset = 30; // keyboard-guideの左パディング + left位置
+            const keyboardGuide = document.getElementById('keyboardGuide');
+            if (!keyboardGuide) return 200;
             
-            // 88鍵ピアノの白鍵は52個
-            // A0, A#0, B0 (3鍵) → 白鍵2個 (A0, B0)
-            // 各オクターブ12鍵 → 白鍵7個
-            // C1〜B7 (84鍵, 7オクターブ) → 白鍵49個
-            // C8 (1鍵) → 白鍵1個
-            // 合計: 2 + 49 + 1 = 52個の白鍵
-            
-            const whiteKeyPositions = [];
-            let whiteKeyCount = 0;
-            
-            // 各鍵盤の種類を定義 (A0から始まる88鍵)
-            const keyTypes = [
-                // A0, A#0, B0
-                'white', 'black', 'white',
-                // C1-B1
-                'white', 'black', 'white', 'black', 'white', 'white', 'black', 'white', 'black', 'white', 'black', 'white',
-                // C2-B2
-                'white', 'black', 'white', 'black', 'white', 'white', 'black', 'white', 'black', 'white', 'black', 'white',
-                // C3-B3
-                'white', 'black', 'white', 'black', 'white', 'white', 'black', 'white', 'black', 'white', 'black', 'white',
-                // C4-B4 (middle C octave)
-                'white', 'black', 'white', 'black', 'white', 'white', 'black', 'white', 'black', 'white', 'black', 'white',
-                // C5-B5
-                'white', 'black', 'white', 'black', 'white', 'white', 'black', 'white', 'black', 'white', 'black', 'white',
-                // C6-B6
-                'white', 'black', 'white', 'black', 'white', 'white', 'black', 'white', 'black', 'white', 'black', 'white',
-                // C7-B7
-                'white', 'black', 'white', 'black', 'white', 'white', 'black', 'white', 'black', 'white', 'black', 'white',
-                // C8
-                'white'
-            ];
-            
-            // 各鍵盤の位置を計算
-            for (let i = 0; i < keyTypes.length; i++) {
-                if (keyTypes[i] === 'white') {
-                    const position = keyboardGuideLeftOffset + (whiteKeyCount * whiteKeyWidth) + (whiteKeyWidth / 2);
-                    whiteKeyPositions.push({ keyNumber: i + 1, position: position, type: 'white' });
-                    whiteKeyCount++;
-                } else {
-                    // 黒鍵は直前の白鍵の位置から計算
-                    const prevWhitePos = keyboardGuideLeftOffset + ((whiteKeyCount - 1) * whiteKeyWidth) + (whiteKeyWidth / 2);
-                    const blackKeyPos = prevWhitePos + (whiteKeyWidth / 2);
-                    whiteKeyPositions.push({ keyNumber: i + 1, position: blackKeyPos, type: 'black' });
-                }
+            // 実際のDOM要素から位置を取得
+            const keys = keyboardGuide.children;
+            if (keys[keyNumber - 1]) {
+                const keyElement = keys[keyNumber - 1];
+                const keyboardGuideRect = keyboardGuide.getBoundingClientRect();
+                const keyRect = keyElement.getBoundingClientRect();
+                
+                // keyboard-guide内での相対位置
+                const relativeLeft = keyRect.left - keyboardGuideRect.left;
+                const keyCenter = relativeLeft + (keyRect.width / 2);
+                
+                // notes-containerとkeyboard-guideの位置差を考慮
+                const notesContainer = document.getElementById('notesContainer');
+                const notesRect = notesContainer ? notesContainer.getBoundingClientRect() : { left: 0 };
+                const keyboardLeftOffset = keyboardGuideRect.left - notesRect.left;
+                
+                return keyboardLeftOffset + keyCenter;
             }
             
-            // 指定された鍵盤番号の位置を返す
-            const keyInfo = whiteKeyPositions.find(k => k.keyNumber === keyNumber);
-            return keyInfo ? keyInfo.position : 200; // デフォルト位置
+            return 200; // フォールバック
         }
 
         // ノート名からピクセル位置を取得する関数
@@ -606,44 +576,48 @@
                 const keyboardGuide = document.getElementById('keyboardGuide');
                 if (!keyboardGuide) return;
 
-                // 88鍵のピアノ鍵盤を生成
-                const noteNames = ['A', 'A#', 'B', 'C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#'];
+                // 88鍵のピアノ鍵盤を正しい順序で生成
+                const keys88 = [
+                    // 最初の3つの鍵盤（オクターブ0）
+                    'A0', 'A#0', 'B0',
+                    // オクターブ1から7まで（各オクターブ12鍵）
+                    'C1', 'C#1', 'D1', 'D#1', 'E1', 'F1', 'F#1', 'G1', 'G#1', 'A1', 'A#1', 'B1',
+                    'C2', 'C#2', 'D2', 'D#2', 'E2', 'F2', 'F#2', 'G2', 'G#2', 'A2', 'A#2', 'B2',
+                    'C3', 'C#3', 'D3', 'D#3', 'E3', 'F3', 'F#3', 'G3', 'G#3', 'A3', 'A#3', 'B3',
+                    'C4', 'C#4', 'D4', 'D#4', 'E4', 'F4', 'F#4', 'G4', 'G#4', 'A4', 'A#4', 'B4',
+                    'C5', 'C#5', 'D5', 'D#5', 'E5', 'F5', 'F#5', 'G5', 'G#5', 'A5', 'A#5', 'B5',
+                    'C6', 'C#6', 'D6', 'D#6', 'E6', 'F6', 'F#6', 'G6', 'G#6', 'A6', 'A#6', 'B6',
+                    'C7', 'C#7', 'D7', 'D#7', 'E7', 'F7', 'F#7', 'G7', 'G#7', 'A7', 'A#7', 'B7',
+                    // 最後の鍵盤（オクターブ8）
+                    'C8'
+                ];
+                
                 const whiteKeys = ['A', 'B', 'C', 'D', 'E', 'F', 'G'];
                 
-                let currentOctave = 0;
-                let noteIndex = 0; // A0から開始
-                
-                // 88鍵すべてを生成
-                for (let keyNumber = 1; keyNumber <= 88; keyNumber++) {
-                    const currentNoteName = noteNames[noteIndex];
-                    const isWhiteKey = whiteKeys.includes(currentNoteName);
+                // 88鍵すべてを正確な順序で生成
+                keys88.forEach((fullNoteName, keyNumber) => {
+                    const baseNoteName = fullNoteName.replace(/[0-9]/g, '');
+                    const isWhiteKey = whiteKeys.includes(baseNoteName);
                     
                     const key = document.createElement('div');
                     key.className = `key ${isWhiteKey ? 'white' : 'black'}`;
-                    key.dataset.note = `${currentNoteName}${currentOctave}`;
-                    key.dataset.keyNumber = keyNumber;
+                    key.dataset.note = fullNoteName;
+                    key.dataset.keyNumber = keyNumber + 1; // 1-88の鍵盤番号
                     
                     // 鍵盤のラベル（重要な音のみ表示）
-                    if (currentNoteName === 'C' && (currentOctave === 4 || currentOctave === 5)) {
-                        key.textContent = `C${currentOctave}`;
+                    if (baseNoteName === 'C' && (fullNoteName === 'C4' || fullNoteName === 'C5')) {
+                        key.textContent = fullNoteName;
                     }
                     
                     keyboardGuide.appendChild(key);
-                    
-                    // 次のノートへ
-                    noteIndex++;
-                    if (noteIndex >= 12) {
-                        noteIndex = 0;
-                        currentOctave++;
-                    }
-                }
+                });
                 
-                console.log('🎹 Generated 88-key piano keyboard');
+                console.log('Generated 88-key piano keyboard with correct note mapping');
                 
-                // デバッグ用: デモ曲のノート位置をコンソールに出力
-                const demoNotes = ['C5', 'G5', 'A5', 'F5', 'E5', 'D5'];
-                console.log('🎵 Demo note positions:');
-                demoNotes.forEach(note => {
+                // デバッグ用: A0, A#0, B0の位置を確認
+                const testNotes = ['A0', 'A#0', 'B0', 'C1', 'C4', 'C5'];
+                console.log('Test note positions:');
+                testNotes.forEach(note => {
                     const pos = getNotePosition(note);
                     console.log(`${note}: position ${pos}px`);
                 });
