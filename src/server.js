@@ -440,49 +440,11 @@ class PianoSyncServer {
                 this.songs = JSON.parse(songsData);
                 console.log(`🎼 Loaded ${this.songs.length} songs`);
             } else {
-                // デフォルト楽曲データ作成
-                this.songs = this.createDefaultSongs();
-                console.log('🎼 Using default songs');
+                console.log('🎼 Nothins Songs');
             }
         } catch (error) {
             console.error('Failed to load songs:', error);
-            this.songs = this.createDefaultSongs();
         }
-    }
-
-    createDefaultSongs() {
-        return [{
-            id: 'demo',
-            title: 'Demo Song - Twinkle Star',
-            duration: 24,
-            bpm: 120,
-            melody: [
-                {time: 0.5, note: 'C5', position: 150, duration: 0.5},
-                {time: 1.0, note: 'C5', position: 150, duration: 0.5},
-                {time: 1.5, note: 'G5', position: 250, duration: 0.5},
-                {time: 2.0, note: 'G5', position: 250, duration: 0.5},
-                {time: 2.5, note: 'A5', position: 270, duration: 0.5},
-                {time: 3.0, note: 'A5', position: 270, duration: 0.5},
-                {time: 3.5, note: 'G5', position: 250, duration: 1.0},
-                {time: 4.5, note: 'F5', position: 230, duration: 0.5},
-                {time: 5.0, note: 'F5', position: 230, duration: 0.5},
-                {time: 5.5, note: 'E5', position: 210, duration: 0.5},
-                {time: 6.0, note: 'E5', position: 210, duration: 0.5},
-                {time: 6.5, note: 'D5', position: 190, duration: 0.5},
-                {time: 7.0, note: 'D5', position: 190, duration: 0.5},
-                {time: 7.5, note: 'C5', position: 150, duration: 1.0}
-            ],
-            accompaniment: [
-                {time: 0.5, note: 'C3', position: 150, duration: 1.0},
-                {time: 1.5, note: 'G3', position: 250, duration: 1.0},
-                {time: 2.5, note: 'F3', position: 230, duration: 1.0},
-                {time: 3.5, note: 'C3', position: 150, duration: 1.0},
-                {time: 4.5, note: 'F3', position: 230, duration: 1.0},
-                {time: 5.5, note: 'C3', position: 150, duration: 1.0},
-                {time: 6.5, note: 'G3', position: 250, duration: 1.0},
-                {time: 7.5, note: 'C3', position: 150, duration: 1.0}
-            ]
-        }];
     }
 
     checkAllClientsReady() {
