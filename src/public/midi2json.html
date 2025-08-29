@@ -1,0 +1,886 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MIDI to JSON Converter</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        
+        .container {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 30px;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            backdrop-filter: blur(10px);
+        }
+        
+        h1 {
+            text-align: center;
+            color: #2c3e50;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .upload-area {
+            border: 3px dashed #667eea;
+            padding: 40px;
+            text-align: center;
+            border-radius: 15px;
+            margin-bottom: 20px;
+            background: linear-gradient(45deg, rgba(102, 126, 234, 0.1), rgba(118, 75, 162, 0.1));
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+        
+        .upload-area:hover {
+            border-color: #764ba2;
+            background: linear-gradient(45deg, rgba(102, 126, 234, 0.2), rgba(118, 75, 162, 0.2));
+            transform: translateY(-2px);
+        }
+        
+        .upload-area.dragover {
+            border-color: #764ba2;
+            background: linear-gradient(45deg, rgba(102, 126, 234, 0.3), rgba(118, 75, 162, 0.3));
+        }
+        
+        input[type="file"] {
+            display: none;
+        }
+        
+        .upload-text {
+            font-size: 1.2em;
+            color: #555;
+            margin-bottom: 10px;
+        }
+        
+        .upload-hint {
+            color: #888;
+            font-size: 0.9em;
+        }
+        
+        .controls {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .control-group {
+            background: rgba(102, 126, 234, 0.1);
+            padding: 15px;
+            border-radius: 10px;
+        }
+        
+        .control-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #2c3e50;
+        }
+        
+        .control-group input, .control-group select {
+            width: 100%;
+            padding: 8px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s ease;
+        }
+        
+        .control-group input:focus, .control-group select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        .convert-btn {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 50px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: block;
+            margin: 20px auto;
+            min-width: 200px;
+        }
+        
+        .convert-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(102, 126, 234, 0.4);
+        }
+        
+        .convert-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        
+        .output-area {
+            margin-top: 30px;
+        }
+        
+        .output-tabs {
+            display: flex;
+            margin-bottom: 20px;
+            border-bottom: 3px solid #eee;
+        }
+        
+        .tab {
+            padding: 12px 24px;
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            color: #666;
+            border-bottom: 3px solid transparent;
+            transition: all 0.3s ease;
+        }
+        
+        .tab.active {
+            color: #667eea;
+            border-bottom-color: #667eea;
+        }
+        
+        .tab:hover {
+            color: #764ba2;
+        }
+        
+        .output-content {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 15px;
+            margin-bottom: 20px;
+            border: 1px solid #e9ecef;
+        }
+        
+        pre {
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            margin: 0;
+            font-family: 'Monaco', 'Consolas', monospace;
+            font-size: 13px;
+            line-height: 1.4;
+            max-height: 600px;
+            overflow-y: auto;
+        }
+        
+        .download-btn {
+            background: linear-gradient(45deg, #28a745, #20c997);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+        
+        .download-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(40, 167, 69, 0.4);
+        }
+        
+        .status {
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 10px;
+            font-weight: 600;
+        }
+        
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .status.info {
+            background: #cce7ff;
+            color: #004085;
+            border: 1px solid #99d5ff;
+        }
+        
+        .midi-info {
+            background: rgba(118, 75, 162, 0.1);
+            padding: 20px;
+            border-radius: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .midi-info h3 {
+            color: #2c3e50;
+            margin-bottom: 15px;
+        }
+        
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+        }
+        
+        .info-item {
+            background: white;
+            padding: 15px;
+            border-radius: 10px;
+            text-align: center;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .info-label {
+            font-weight: 600;
+            color: #667eea;
+            font-size: 0.9em;
+            margin-bottom: 5px;
+        }
+        
+        .info-value {
+            font-size: 1.1em;
+            color: #2c3e50;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎹 MIDI to JSON Converter</h1>
+        
+        <div class="upload-area" id="uploadArea">
+            <div class="upload-text">📁 MIDIファイルをドラッグ＆ドロップ または クリックして選択</div>
+            <div class="upload-hint">.mid, .midi ファイルに対応</div>
+            <input type="file" id="fileInput" accept=".mid,.midi" />
+        </div>
+        
+        <div class="controls" style="display:none;" id="controls">
+            <div class="control-group">
+                <label for="songTitle">曲名</label>
+                <input type="text" id="songTitle" placeholder="楽曲のタイトル" />
+            </div>
+            <div class="control-group">
+                <label for="composer">作曲者</label>
+                <input type="text" id="composer" placeholder="作曲者名" />
+            </div>
+            <div class="control-group">
+                <label for="difficulty">難易度</label>
+                <select id="difficulty">
+                    <option value="Beginner">初級</option>
+                    <option value="Intermediate" selected>中級</option>
+                    <option value="Advanced">上級</option>
+                    <option value="Expert">エキスパート</option>
+                </select>
+            </div>
+            <div class="control-group">
+                <label for="trackSelect">トラック選択</label>
+                <select id="trackSelect">
+                    <option value="all">全トラック</option>
+                </select>
+            </div>
+        </div>
+        
+        <button class="convert-btn" id="convertBtn" style="display:none;" disabled>
+            🎵 JSONに変換
+        </button>
+        
+        <div id="midiInfo" style="display:none;"></div>
+        
+        <div id="status"></div>
+        
+        <div class="output-area" id="outputArea" style="display:none;">
+            <div class="output-tabs">
+                <button class="tab active" data-tab="json">JSON出力</button>
+                <button class="tab" data-tab="midi-data">MIDIデータ</button>
+            </div>
+            
+            <div id="json-content" class="output-content">
+                <pre id="jsonOutput"></pre>
+                <button class="download-btn" id="downloadJson">📥 JSONダウンロード</button>
+            </div>
+            
+            <div id="midi-data-content" class="output-content" style="display:none;">
+                <pre id="midiDataOutput"></pre>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        class MIDIToJSONConverter {
+            constructor() {
+                this.midiData = null;
+                this.parsedMIDI = null;
+                this.init();
+            }
+
+            init() {
+                this.setupEventListeners();
+            }
+
+            setupEventListeners() {
+                const uploadArea = document.getElementById('uploadArea');
+                const fileInput = document.getElementById('fileInput');
+                const convertBtn = document.getElementById('convertBtn');
+
+                uploadArea.addEventListener('click', () => fileInput.click());
+                uploadArea.addEventListener('dragover', this.handleDragOver.bind(this));
+                uploadArea.addEventListener('dragleave', this.handleDragLeave.bind(this));
+                uploadArea.addEventListener('drop', this.handleFileDrop.bind(this));
+                
+                fileInput.addEventListener('change', this.handleFileSelect.bind(this));
+                convertBtn.addEventListener('click', this.convertToJSON.bind(this));
+
+                // タブ切り替え
+                document.querySelectorAll('.tab').forEach(tab => {
+                    tab.addEventListener('click', this.switchTab.bind(this));
+                });
+
+                // ダウンロードボタン
+                document.getElementById('downloadJson').addEventListener('click', this.downloadJSON.bind(this));
+            }
+
+            handleDragOver(e) {
+                e.preventDefault();
+                document.getElementById('uploadArea').classList.add('dragover');
+            }
+
+            handleDragLeave(e) {
+                e.preventDefault();
+                document.getElementById('uploadArea').classList.remove('dragover');
+            }
+
+            handleFileDrop(e) {
+                e.preventDefault();
+                document.getElementById('uploadArea').classList.remove('dragover');
+                const files = e.dataTransfer.files;
+                if (files.length > 0) {
+                    this.processFile(files[0]);
+                }
+            }
+
+            handleFileSelect(e) {
+                const file = e.target.files[0];
+                if (file) {
+                    this.processFile(file);
+                }
+            }
+
+            async processFile(file) {
+                if (!file.name.toLowerCase().match(/\.(mid|midi)$/)) {
+                    this.showStatus('error', 'MIDIファイル (.mid, .midi) を選択してください');
+                    return;
+                }
+
+                this.showStatus('info', 'MIDIファイルを読み込み中...');
+
+                try {
+                    const arrayBuffer = await file.arrayBuffer();
+                    this.midiData = new Uint8Array(arrayBuffer);
+                    this.parsedMIDI = this.parseMIDI(this.midiData);
+                    
+                    this.displayMIDIInfo();
+                    this.setupControls();
+                    this.showStatus('success', `MIDIファイル "${file.name}" を読み込みました`);
+                    
+                    document.getElementById('controls').style.display = 'grid';
+                    document.getElementById('convertBtn').style.display = 'block';
+                    document.getElementById('convertBtn').disabled = false;
+                    
+                } catch (error) {
+                    this.showStatus('error', `ファイル読み込みエラー: ${error.message}`);
+                }
+            }
+
+            parseMIDI(data) {
+                let offset = 0;
+                
+                // ヘッダーチャンク解析
+                const header = this.parseHeader(data, offset);
+                offset += 14; // ヘッダーサイズ
+
+                // トラック解析
+                const tracks = [];
+                for (let i = 0; i < header.trackCount; i++) {
+                    const track = this.parseTrack(data, offset);
+                    tracks.push(track);
+                    offset += track.length + 8; // トラックヘッダー + データ
+                }
+
+                return {
+                    header,
+                    tracks
+                };
+            }
+
+            parseHeader(data, offset) {
+                // "MThd" チェック
+                const headerType = String.fromCharCode(...data.slice(offset, offset + 4));
+                if (headerType !== 'MThd') {
+                    throw new Error('Invalid MIDI file: Header not found');
+                }
+
+                const headerLength = this.readInt32(data, offset + 4);
+                const format = this.readInt16(data, offset + 8);
+                const trackCount = this.readInt16(data, offset + 10);
+                const division = this.readInt16(data, offset + 12);
+
+                return {
+                    format,
+                    trackCount,
+                    division,
+                    ticksPerQuarter: division & 0x7FFF
+                };
+            }
+
+            parseTrack(data, offset) {
+                // "MTrk" チェック
+                const trackType = String.fromCharCode(...data.slice(offset, offset + 4));
+                if (trackType !== 'MTrk') {
+                    throw new Error('Invalid track header');
+                }
+
+                const trackLength = this.readInt32(data, offset + 4);
+                const trackData = data.slice(offset + 8, offset + 8 + trackLength);
+                
+                const events = this.parseEvents(trackData);
+                
+                return {
+                    length: trackLength,
+                    events
+                };
+            }
+
+            parseEvents(trackData) {
+                const events = [];
+                let offset = 0;
+                let currentTime = 0;
+                let runningStatus = 0;
+
+                while (offset < trackData.length) {
+                    // Delta time 読み込み
+                    const deltaTime = this.readVariableLength(trackData, offset);
+                    offset = deltaTime.offset;
+                    currentTime += deltaTime.value;
+
+                    // イベントタイプ
+                    let eventType = trackData[offset];
+                    
+                    // Running Status 処理
+                    if (eventType < 0x80) {
+                        eventType = runningStatus;
+                        offset--; // オフセットを戻す
+                    } else {
+                        runningStatus = eventType;
+                    }
+
+                    offset++;
+
+                    const event = {
+                        time: currentTime,
+                        type: 'unknown'
+                    };
+
+                    if ((eventType & 0xF0) === 0x90) { // Note On
+                        event.type = 'noteOn';
+                        event.channel = eventType & 0x0F;
+                        event.note = trackData[offset++];
+                        event.velocity = trackData[offset++];
+                        if (event.velocity === 0) {
+                            event.type = 'noteOff'; // Velocity 0 = Note Off
+                        }
+                    } else if ((eventType & 0xF0) === 0x80) { // Note Off
+                        event.type = 'noteOff';
+                        event.channel = eventType & 0x0F;
+                        event.note = trackData[offset++];
+                        event.velocity = trackData[offset++];
+                    } else if ((eventType & 0xF0) === 0xC0) { // Program Change
+                        event.type = 'programChange';
+                        event.channel = eventType & 0x0F;
+                        event.program = trackData[offset++];
+                    } else if (eventType === 0xFF) { // Meta Event
+                        const metaType = trackData[offset++];
+                        const length = this.readVariableLength(trackData, offset);
+                        offset = length.offset;
+                        
+                        if (metaType === 0x51) { // Tempo
+                            const tempo = (trackData[offset] << 16) | (trackData[offset + 1] << 8) | trackData[offset + 2];
+                            event.type = 'tempo';
+                            event.microsecondsPerQuarter = tempo;
+                            event.bpm = Math.round(60000000 / tempo);
+                        } else if (metaType === 0x58) { // Time Signature
+                            event.type = 'timeSignature';
+                            event.numerator = trackData[offset];
+                            event.denominator = Math.pow(2, trackData[offset + 1]);
+                        } else if (metaType === 0x59) { // Key Signature
+                            event.type = 'keySignature';
+                            event.key = trackData[offset];
+                            event.scale = trackData[offset + 1]; // 0 = major, 1 = minor
+                        } else if (metaType === 0x03) { // Track Name
+                            event.type = 'trackName';
+                            event.text = String.fromCharCode(...trackData.slice(offset, offset + length.value));
+                        }
+                        
+                        offset += length.value;
+                    } else {
+                        // その他のイベントをスキップ
+                        if (eventType < 0xF0) {
+                            offset += this.getMIDIEventLength(eventType) - 1;
+                        }
+                    }
+
+                    events.push(event);
+                }
+
+                return events;
+            }
+
+            getMIDIEventLength(eventType) {
+                const channel = eventType & 0x0F;
+                const command = eventType & 0xF0;
+                
+                switch (command) {
+                    case 0x80: case 0x90: case 0xA0: case 0xB0: case 0xE0:
+                        return 3;
+                    case 0xC0: case 0xD0:
+                        return 2;
+                    default:
+                        return 1;
+                }
+            }
+
+            readVariableLength(data, offset) {
+                let value = 0;
+                let byte;
+                const startOffset = offset;
+                
+                do {
+                    byte = data[offset++];
+                    value = (value << 7) | (byte & 0x7F);
+                } while (byte & 0x80);
+                
+                return { value, offset };
+            }
+
+            readInt32(data, offset) {
+                return (data[offset] << 24) | (data[offset + 1] << 16) | 
+                       (data[offset + 2] << 8) | data[offset + 3];
+            }
+
+            readInt16(data, offset) {
+                return (data[offset] << 8) | data[offset + 1];
+            }
+
+            displayMIDIInfo() {
+                const info = this.analyzeMIDI();
+                const infoHtml = `
+                    <div class="midi-info">
+                        <h3>📊 MIDI ファイル情報</h3>
+                        <div class="info-grid">
+                            <div class="info-item">
+                                <div class="info-label">フォーマット</div>
+                                <div class="info-value">Type ${info.format}</div>
+                            </div>
+                            <div class="info-item">
+                                <div class="info-label">トラック数</div>
+                                <div class="info-value">${info.trackCount}</div>
+                            </div>
+                            <div class="info-item">
+                                <div class="info-label">テンポ</div>
+                                <div class="info-value">${info.bpm} BPM</div>
+                            </div>
+                            <div class="info-item">
+                                <div class="info-label">拍子</div>
+                                <div class="info-value">${info.timeSignature}</div>
+                            </div>
+                            <div class="info-item">
+                                <div class="info-label">調性</div>
+                                <div class="info-value">${info.keySignature}</div>
+                            </div>
+                            <div class="info-item">
+                                <div class="info-label">演奏時間</div>
+                                <div class="info-value">${info.duration}秒</div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                document.getElementById('midiInfo').innerHTML = infoHtml;
+                document.getElementById('midiInfo').style.display = 'block';
+            }
+
+            analyzeMIDI() {
+                const header = this.parsedMIDI.header;
+                let bpm = 120; // デフォルト
+                let timeSignature = '4/4';
+                let keySignature = 'C Major';
+                let maxTime = 0;
+
+                // 全トラックから情報を収集
+                this.parsedMIDI.tracks.forEach(track => {
+                    track.events.forEach(event => {
+                        if (event.type === 'tempo') {
+                            bpm = event.bpm;
+                        }
+                        if (event.type === 'timeSignature') {
+                            timeSignature = `${event.numerator}/${event.denominator}`;
+                        }
+                        if (event.type === 'keySignature') {
+                            keySignature = this.getKeySignatureName(event.key, event.scale);
+                        }
+                        maxTime = Math.max(maxTime, event.time);
+                    });
+                });
+
+                const duration = Math.round((maxTime / header.ticksPerQuarter) * (60 / bpm));
+
+                return {
+                    format: header.format,
+                    trackCount: header.trackCount,
+                    bpm,
+                    timeSignature,
+                    keySignature,
+                    duration
+                };
+            }
+
+            getKeySignatureName(key, scale) {
+                const keys = ['C', 'G', 'D', 'A', 'E', 'B', 'F#', 'C#', 'F', 'Bb', 'Eb', 'Ab', 'Db', 'Gb', 'Cb'];
+                const keyIndex = key < 0 ? key + 15 : key;
+                const keyName = keys[keyIndex] || 'C';
+                return `${keyName} ${scale === 0 ? 'Major' : 'minor'}`;
+            }
+
+            setupControls() {
+                // トラック選択オプションを設定
+                const trackSelect = document.getElementById('trackSelect');
+                trackSelect.innerHTML = '<option value="all">全トラック統合</option>';
+                
+                this.parsedMIDI.tracks.forEach((track, index) => {
+                    const trackName = this.getTrackName(track) || `トラック ${index + 1}`;
+                    const noteCount = track.events.filter(e => e.type === 'noteOn').length;
+                    trackSelect.innerHTML += `<option value="${index}">${trackName} (${noteCount} notes)</option>`;
+                });
+            }
+
+            getTrackName(track) {
+                const nameEvent = track.events.find(e => e.type === 'trackName');
+                return nameEvent ? nameEvent.text : null;
+            }
+
+            convertToJSON() {
+                this.showStatus('info', 'JSONに変換中...');
+                
+                try {
+                    const json = this.generateJSON();
+                    document.getElementById('jsonOutput').textContent = JSON.stringify(json, null, 2);
+                    document.getElementById('midiDataOutput').textContent = this.generateMIDIDataView();
+                    
+                    document.getElementById('outputArea').style.display = 'block';
+                    this.showStatus('success', 'JSON変換が完了しました！');
+                    
+                } catch (error) {
+                    this.showStatus('error', `変換エラー: ${error.message}`);
+                }
+            }
+
+            generateJSON() {
+                const header = this.parsedMIDI.header;
+                const info = this.analyzeMIDI();
+                
+                // メロディデータを生成
+                const melody = this.extractMelody();
+                
+                const json = {
+                    id: document.getElementById('songTitle').value.toLowerCase().replace(/\s+/g, '_') || 'untitled',
+                    title: document.getElementById('songTitle').value || 'Untitled',
+                    composer: document.getElementById('composer').value || 'Unknown',
+                    duration: info.duration,
+                    bpm: info.bpm,
+                    timeSignature: info.timeSignature,
+                    key: info.keySignature,
+                    difficulty: document.getElementById('difficulty').value,
+                    melody: melody
+                };
+
+                return json;
+            }
+
+            extractMelody() {
+                const selectedTrack = document.getElementById('trackSelect').value;
+                const tracks = selectedTrack === 'all' ? this.parsedMIDI.tracks : [this.parsedMIDI.tracks[selectedTrack]];
+                
+                const noteEvents = [];
+                const activeNotes = new Map();
+                
+                // 全イベントを時間順でソート
+                const allEvents = [];
+                tracks.forEach(track => {
+                    track.events.forEach(event => {
+                        if (event.type === 'noteOn' || event.type === 'noteOff') {
+                            allEvents.push(event);
+                        }
+                    });
+                });
+                allEvents.sort((a, b) => a.time - b.time);
+
+                // Note On/Off をペアリング
+                allEvents.forEach(event => {
+                    const noteKey = `${event.note}_${event.channel}`;
+                    
+                    if (event.type === 'noteOn' && event.velocity > 0) {
+                        activeNotes.set(noteKey, event);
+                    } else if (event.type === 'noteOff' || (event.type === 'noteOn' && event.velocity === 0)) {
+                        const noteOnEvent = activeNotes.get(noteKey);
+                        if (noteOnEvent) {
+                            const duration = event.time - noteOnEvent.time;
+                            noteEvents.push({
+                                startTime: noteOnEvent.time,
+                                note: noteOnEvent.note,
+                                duration: duration,
+                                velocity: noteOnEvent.velocity
+                            });
+                            activeNotes.delete(noteKey);
+                        }
+                    }
+                });
+
+                // JSON形式に変換
+                const header = this.parsedMIDI.header;
+                const info = this.analyzeMIDI();
+                const ticksPerSecond = (header.ticksPerQuarter * info.bpm) / 60;
+                
+                return noteEvents
+                    .sort((a, b) => a.startTime - b.startTime)
+                    .map(note => ({
+                        time: parseFloat((note.startTime / ticksPerSecond).toFixed(3)),
+                        note: this.midiNoteToName(note.note),
+                        duration: parseFloat((note.duration / ticksPerSecond).toFixed(3)),
+                        finger: this.suggestFinger(note.note)
+                    }));
+            }
+
+            midiNoteToName(midiNote) {
+                const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+                const octave = Math.floor(midiNote / 12) - 1;
+                const noteName = noteNames[midiNote % 12];
+                return `${noteName}${octave}`;
+            }
+
+            suggestFinger(midiNote) {
+                // 簡単な運指提案（C4=60を基準）
+                const relativeNote = midiNote - 60; // C4からの相対位置
+                return Math.max(1, Math.min(5, Math.abs(relativeNote % 5) + 1));
+            }
+
+            generateMIDIDataView() {
+                let output = '=== MIDI File Analysis ===\n\n';
+                
+                output += `Format: Type ${this.parsedMIDI.header.format}\n`;
+                output += `Tracks: ${this.parsedMIDI.header.trackCount}\n`;
+                output += `Division: ${this.parsedMIDI.header.division}\n`;
+                output += `Ticks Per Quarter: ${this.parsedMIDI.header.ticksPerQuarter}\n\n`;
+                
+                this.parsedMIDI.tracks.forEach((track, index) => {
+                    output += `--- Track ${index + 1} ---\n`;
+                    output += `Events: ${track.events.length}\n`;
+                    
+                    const trackName = this.getTrackName(track);
+                    if (trackName) {
+                        output += `Name: ${trackName}\n`;
+                    }
+                    
+                    const noteEvents = track.events.filter(e => e.type === 'noteOn');
+                    output += `Notes: ${noteEvents.length}\n`;
+                    
+                    // 最初の数イベントを表示
+                    output += 'Sample Events:\n';
+                    track.events.slice(0, 10).forEach(event => {
+                        output += `  Time: ${event.time}, Type: ${event.type}`;
+                        if (event.note !== undefined) {
+                            output += `, Note: ${this.midiNoteToName(event.note)}`;
+                        }
+                        if (event.velocity !== undefined) {
+                            output += `, Velocity: ${event.velocity}`;
+                        }
+                        if (event.bpm !== undefined) {
+                            output += `, BPM: ${event.bpm}`;
+                        }
+                        output += '\n';
+                    });
+                    output += '\n';
+                });
+                
+                return output;
+            }
+
+            switchTab(e) {
+                const tabName = e.target.dataset.tab;
+                
+                // タブの表示切り替え
+                document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
+                e.target.classList.add('active');
+                
+                // コンテンツの表示切り替え
+                document.querySelectorAll('.output-content').forEach(content => {
+                    content.style.display = 'none';
+                });
+                document.getElementById(`${tabName}-content`).style.display = 'block';
+            }
+
+            downloadJSON() {
+                const jsonContent = document.getElementById('jsonOutput').textContent;
+                if (!jsonContent) return;
+                
+                const filename = document.getElementById('songTitle').value || 'midi_converted';
+                const blob = new Blob([jsonContent], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `${filename}.json`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                
+                this.showStatus('success', 'JSONファイルをダウンロードしました');
+            }
+
+            showStatus(type, message) {
+                const statusDiv = document.getElementById('status');
+                statusDiv.className = `status ${type}`;
+                statusDiv.textContent = message;
+                statusDiv.style.display = 'block';
+                
+                if (type === 'success') {
+                    setTimeout(() => {
+                        statusDiv.style.display = 'none';
+                    }, 3000);
+                }
+            }
+        }
+
+        // アプリケーション初期化
+        document.addEventListener('DOMContentLoaded', () => {
+            new MIDIToJSONConverter();
+        });
+    </script>
+</body>
+</html>

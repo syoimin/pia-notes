@@ -434,7 +434,8 @@ class PianoSyncServer {
 
     async loadSongs() {
         try {
-            const songsPath = path.join(__dirname, 'songs', 'demo.json');
+            // const songsPath = path.join(__dirname, 'songs', 'demo.json');
+            const songsPath = path.join(__dirname, 'songs/output', 'midi_converted.json');
             if (fs.existsSync(songsPath)) {
                 const songsData = fs.readFileSync(songsPath, 'utf8');
                 this.songs = JSON.parse(songsData);
