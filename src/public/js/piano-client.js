@@ -131,6 +131,14 @@ class PianoClient {
             this.updateBPM(data.bpm);
         });
 
+        this.syncCore.on('syncPause', () => {
+            this.pausePerformance();
+        });
+
+        this.syncCore.on('syncResume', (data) => {
+            this.resumePerformance(data);
+        });
+
         this.syncCore.on('latencyUpdate', (data) => {
             this.updateLatencyDisplay(data.latency);
         });
@@ -714,10 +722,17 @@ class PianoClient {
         if (this.currentSong && !this.animationId) {
             this.startAnimation();
         }
+
+        if (data && data.notesSettings) {
+            // ノーツ設定を更新（必要に応じて）
+            this.updateNotesSettings(data.notesSettings);
+        }
+        document.body.style.background = `linear-gradient(135deg, ${this.options.fallbackColor}22, #1a1a1a)`;
     }
 
     pausePerformance() {
         this.stopAnimation();
+        document.body.style.background = 'linear-gradient(135deg, #FF9800, #1a1a1a)';
     }
 
     destroy() {

@@ -966,6 +966,12 @@
                     if (song && currentSongTitle) {
                         currentSongTitle.textContent = song.title || '不明な楽曲';
                     }
+
+                    if (pauseBtn) {
+                        pauseBtn.disabled = false;
+                        pauseBtn.textContent = '⏸️ 一時停止';
+                        pauseBtn.onclick = pausePerformance;
+                    }
                 } else {
                     if (indicator) {
                         indicator.className = 'performance-indicator stopped';
@@ -983,6 +989,25 @@
                     
                     if (currentSongTitle) currentSongTitle.textContent = '未選択';
                 }
+
+                if (status === 'paused') {
+                    if (indicator) {
+                        indicator.className = 'performance-indicator';
+                        indicator.style.background = '#FF9800';
+                        indicator.textContent = '⏸️ 一時停止中';
+                    }
+                    
+                    if (startBtn) startBtn.disabled = true;
+                    if (stopBtn) stopBtn.disabled = false;
+                    if (pauseBtn) {
+                        pauseBtn.disabled = false;
+                        pauseBtn.textContent = '▶️ 再開';
+                        pauseBtn.onclick = resumePerformance;
+                    }
+                    
+                    this.currentPerformance = { song, status: 'paused' };
+                }
+
             }
         }
 
@@ -1064,8 +1089,37 @@
             }
         }
 
-        function pausePerformance() {
-            masterControl.log('一時停止機能は未実装です', 'warning');
+        async function pausePerformance() {
+            try {
+                const response = await fetch('/api/pause', { method: 'POST' });
+                const result = await response.json();
+                
+                if (result.success) {
+                    masterControl.updatePerformanceStatus('paused');
+                    masterControl.log('演奏を一時停止しました');
+                } else {
+                    masterControl.log('一時停止エラー: ' + result.error, 'error');
+                }
+            } catch (error) {
+                masterControl.log('一時停止エラー: ' + error.message, 'error');
+            }
+        }
+
+        // 再開用関数
+        async function resumePerformance() {
+            try {
+                const response = await fetch('/api/resume', { method: 'POST' });
+                const result = await response.json();
+                
+                if (result.success) {
+                    masterControl.updatePerformanceStatus('playing');
+                    masterControl.log('演奏を再開しました');
+                } else {
+                    masterControl.log('再開エラー: ' + result.error, 'error');
+                }
+            } catch (error) {
+                masterControl.log('再開エラー: ' + error.message, 'error');
+            }
         }
 
         function emergencyStop() {

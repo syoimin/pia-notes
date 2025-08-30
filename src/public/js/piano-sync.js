@@ -171,6 +171,14 @@ class PianoSyncCore {
                 this.handleTempoChange(data);
                 break;
 
+            case 'sync_pause':
+                this.handleSyncPause(data);
+                break;
+
+            case 'sync_resume':
+                this.handleSyncResume(data);
+                break;
+
             case 'pong':
                 this.calculateLatency(data);
                 break;
@@ -280,6 +288,28 @@ class PianoSyncCore {
             musicTime: oldMusicTime,
             oldBpm: oldBpm
         });
+    }
+
+    handleSyncPause(data) {
+        console.log('Sync pause received');
+        this.isPlaying = false;
+        this.emit('syncPause', data);
+    }
+
+    handleSyncResume(data) {
+        console.log('Sync resume received:', data);
+        
+        this.currentSong = data.song;
+        this.originalBpm = data.bpm;
+        this.currentBpm = data.bpm;
+        
+        // 再開時の時間調整
+        this.startTime = data.startTime;
+        this.baseMusicTime = data.elapsedTime || 0;
+        this.lastTempoChangeTime = Date.now();
+        
+        this.isPlaying = true;
+        this.emit('syncResume', data);
     }
 
     getMusicTime() {

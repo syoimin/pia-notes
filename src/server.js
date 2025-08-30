@@ -47,6 +47,9 @@ class PianoSyncServer {
         this.silenceTimeout = null;
         this.maxSilenceDuration = 10000; // 10秒
 
+        // 一時停止セッション保存用
+        this.pausedSession = null; 
+
         this.initialize();
     }
 
@@ -171,6 +174,18 @@ class PianoSyncServer {
             const { bpm } = req.body;
             this.changeTempo(bpm);
             res.json({ success: true, bpm: bpm });
+        });
+
+        // 一時停止
+        this.app.post('/api/pause', (req, res) => {
+            const result = this.pausePerformance();
+            res.json(result);
+        });
+
+        // 再開
+        this.app.post('/api/resume', (req, res) => {
+            const result = this.resumePerformance();
+            res.json(result);
         });
     }
 
@@ -427,6 +442,9 @@ class PianoSyncServer {
     stopPerformance() {
         if (!this.currentSession) return;
 
+        // 一時停止セッションもクリア
+        this.pausedSession = null;
+
         this.broadcastToAll({
             type: 'sync_stop',
             serverTime: Date.now()
@@ -443,6 +461,71 @@ class PianoSyncServer {
         }
 
         console.log('🛑 Performance stopped');
+    }
+
+    // 一時停止メソッド追加
+    pausePerformance() {
+        if (!this.currentSession || this.currentSession.status === 'paused') {
+            return { success: false, error: 'No active performance to pause' };
+        }
+
+        // 現在のセッションを一時停止状態に
+        this.pausedSession = {
+            ...this.currentSession,
+            pausedAt: Date.now(),
+            elapsedTimeBeforePause: (Date.now() - this.currentSession.startTime) / 1000
+        };
+
+        this.currentSession.status = 'paused';
+        this.systemStatus.isPlaying = false;
+
+        // 無音タイマーを停止
+        if (this.silenceTimeout) {
+            clearTimeout(this.silenceTimeout);
+            this.silenceTimeout = null;
+        }
+
+        // 全クライアントに一時停止通知
+        this.broadcastToAll({
+            type: 'sync_pause',
+            serverTime: Date.now()
+        });
+
+        console.log('Performance paused');
+        return { success: true, message: 'Performance paused' };
+    }
+
+    // 再開メソッド追加
+    resumePerformance() {
+        if (!this.pausedSession || this.currentSession?.status !== 'paused') {
+            return { success: false, error: 'No paused performance to resume' };
+        }
+
+        // 新しい開始時間を計算
+        const newStartTime = Date.now() - (this.pausedSession.elapsedTimeBeforePause * 1000);
+        
+        this.currentSession = {
+            ...this.pausedSession,
+            startTime: newStartTime,
+            status: 'playing'
+        };
+
+        this.systemStatus.isPlaying = true;
+        this.pausedSession = null;
+
+        // 全クライアントに再開通知
+        this.broadcastToAll({
+            type: 'sync_resume',
+            song: this.songs.find(s => s.id === this.currentSession.songId),
+            startTime: newStartTime,
+            bpm: this.currentSession.bpm,
+            serverTime: Date.now(),
+            elapsedTime: this.currentSession.elapsedTimeBeforePause,
+            notesSettings: this.currentSession.notesSettings
+        });
+
+        console.log('Performance resumed');
+        return { success: true, message: 'Performance resumed' };
     }
 
     changeTempo(newBpm) {
