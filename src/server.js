@@ -293,6 +293,20 @@ class PianoSyncServer {
                 client.latency = data.latency;
                 break;
 
+            case 'note_played':
+                if (this.currentSession) {
+                    this.currentSession.playedNotes++;
+                    console.log(`Notes played: ${this.currentSession.playedNotes}/${this.currentSession.totalNotes}`);
+                    
+                    // 全ノート演奏完了で終了
+                    if (this.currentSession.playedNotes >= this.currentSession.totalNotes) {
+                        setTimeout(() => {
+                            this.stopPerformance();
+                        }, 1000); // 1秒の余韻
+                    }
+                }
+                break;
+
             case 'ready':
                 client.ready = true;
                 this.checkAllClientsReady();
@@ -334,8 +348,13 @@ class PianoSyncServer {
         }
     }
 
-    startPerformance(songId = 'demo', bpm = 120) {
+    startPerformance(songId = 'demo', bpm = 120, notesSettings = null) {
         const song = this.songs.find(s => s.id === songId) || this.songs[0];
+    
+        // 総ノート数を計算
+        const totalNotes = (song.melody ? song.melody.length : 0) + 
+                        (song.accompaniment ? song.accompaniment.length : 0);
+
         if (!song) {
             return { success: false, error: 'No songs available' };
         }
@@ -346,6 +365,8 @@ class PianoSyncServer {
         this.currentSession = {
             songId: song.id,
             startTime: startTime,
+            totalNotes: totalNotes,
+            playedNotes: 0, // 演奏済みカウンター
             bpm: bpm,
             status: 'playing',
             duration: song.duration

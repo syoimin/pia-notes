@@ -6,6 +6,7 @@
 class PianoClient {
     constructor(clientType, options = {}) {
         this.clientType = clientType; // 'melody' or 'accompaniment'
+        this.playedNotes = new Set(); // 演奏済みノートを記録
         this.options = {
             lookAhead: options.lookAhead || 2, // 先読み時間を延長 (5→8秒)
             fallbackColor: clientType === 'melody' ? '#2196F3' : '#4CAF50',
@@ -358,14 +359,24 @@ class PianoClient {
     checkHitTiming(notes, currentTime) {
         notes.forEach(noteData => {
             const timeUntilNote = noteData.time - currentTime;
+            const noteId = `${noteData.note}_${noteData.time}`;
             
             // ヒットタイミングのチェック
             if (Math.abs(timeUntilNote) < 0.1) {
                 this.highlightKey(noteData.note);
                 
                 // 自動演奏音を出す
-                if (Math.abs(timeUntilNote) < 0.05) {
+                if (Math.abs(timeUntilNote) < 0.05 && !this.playedNotes.has(noteId)) {
+                    // まだ演奏していないノートのみ処理
+                    this.playedNotes.add(noteId);
                     this.playKeySound(noteData.note);
+                    
+                    // サーバーに1回だけ通知
+                    this.syncCore.send({
+                        type: 'note_played',
+                        noteId: noteId,
+                        clientType: this.clientType
+                    });
                 }
             }
         });
