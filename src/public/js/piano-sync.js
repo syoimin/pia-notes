@@ -1,6 +1,6 @@
 /**
  * Piano Sync System - 同期システムJS
- * 高精度WebSocketベース同期システム
+ * 高精度WebSocketベース同期システム（テンポ変更対応版）
  */
 
 class PianoSyncCore {
@@ -31,7 +31,13 @@ class PianoSyncCore {
         this.isPlaying = false;
         this.startTime = 0;
         this.currentSong = null;
-        this.bpm = 120;
+        this.originalBpm = 120;
+        this.currentBpm = 120;
+        
+        // テンポ変更追跡用
+        this.tempoChanges = []; // {time, oldBpm, newBpm, musicTimeAtChange}
+        this.baseMusicTime = 0; // テンポ変更時の基準音楽時間
+        this.lastTempoChangeTime = 0; // 最後のテンポ変更時刻
         
         // イベントハンドラー
         this.eventHandlers = {};
@@ -51,43 +57,46 @@ class PianoSyncCore {
             // 定期的なレイテンシー測定
             setInterval(() => this.measureLatency(), this.options.latencyMeasureInterval);
             
-            console.log('🎹 Piano Sync Core initialized');
+            console.log('Piano Sync Core initialized');
         } catch (error) {
-            console.error('❌ Failed to initialize Piano Sync Core:', error);
+            console.error('Failed to initialize Piano Sync Core:', error);
         }
     }
 
     async initializeWebAudio() {
         try {
-            // ユーザーアクションが必要な場合に備えて
             if (!this.audioContext) {
                 this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
             }
             
-            // コンテキストが停止している場合は再開
             if (this.audioContext.state === 'suspended') {
-                await this.audioContext.resume();
+                console.log('[DEBUG] AudioContext suspended, will resume on user interaction');
+                // ユーザーアクション後に再開される予定なので、ここではエラーを投げない
             }
             
-            console.log('🎵 Web Audio API initialized');
+            console.log('[DEBUG] Web Audio API initialized (state:', this.audioContext.state, ')');
         } catch (error) {
-            console.error('Failed to initialize Web Audio API:', error);
-            // フォールバックとしてperformance.nowを使用
+            console.warn('[DEBUG] Web Audio API initialization failed:', error);
+            // AudioContextが使えなくてもWebSocket接続は可能なので、エラーを投げない
         }
     }
 
     connectWebSocket() {
         const wsUrl = `ws://${this.options.wsHost}:${this.options.wsPort}`;
+        console.log('[DEBUG] connectWebSocket called, URL:', wsUrl);
         
         try {
+            console.log('[DEBUG] Creating WebSocket...');
             this.ws = new WebSocket(wsUrl);
+            console.log('[DEBUG] WebSocket created:', this.ws);
+            console.log('[DEBUG] Initial readyState:', this.ws.readyState);
             
             this.ws.onopen = () => {
-                console.log('🔗 Connected to Piano Sync Server');
+                console.log('[DEBUG] WebSocket onopen fired');
+                console.log('Connected to Piano Sync Server');
                 this.isConnected = true;
                 this.reconnectAttempts = 0;
                 
-                // クライアント登録
                 this.send({
                     type: 'register',
                     clientType: this.clientType,
@@ -99,6 +108,7 @@ class PianoSyncCore {
             };
 
             this.ws.onmessage = (event) => {
+                console.log('[DEBUG] WebSocket message received:', event.data);
                 try {
                     const data = JSON.parse(event.data);
                     this.handleServerMessage(data);
@@ -107,21 +117,22 @@ class PianoSyncCore {
                 }
             };
 
-            this.ws.onclose = () => {
-                console.log('📱 Disconnected from Piano Sync Server');
+            this.ws.onclose = (event) => {
+                console.log('[DEBUG] WebSocket onclose fired:', event.code, event.reason);
+                console.log('Disconnected from Piano Sync Server');
                 this.isConnected = false;
                 this.emit('disconnected');
-                
-                // 自動再接続
                 this.attemptReconnection();
             };
 
             this.ws.onerror = (error) => {
+                console.error('[DEBUG] WebSocket onerror fired:', error);
                 console.error('WebSocket error:', error);
                 this.emit('error', error);
             };
 
         } catch (error) {
+            console.error('[DEBUG] Exception in connectWebSocket:', error);
             console.error('Failed to connect WebSocket:', error);
             this.attemptReconnection();
         }
@@ -129,13 +140,13 @@ class PianoSyncCore {
 
     attemptReconnection() {
         if (this.reconnectAttempts >= this.options.maxReconnectAttempts) {
-            console.error('❌ Max reconnection attempts reached');
+            console.error('Max reconnection attempts reached');
             this.emit('connectionFailed');
             return;
         }
 
         this.reconnectAttempts++;
-        console.log(`🔄 Attempting to reconnect (${this.reconnectAttempts}/${this.options.maxReconnectAttempts})...`);
+        console.log(`Attempting to reconnect (${this.reconnectAttempts}/${this.options.maxReconnectAttempts})...`);
         
         setTimeout(() => {
             this.connectWebSocket();
@@ -171,71 +182,163 @@ class PianoSyncCore {
     }
 
     handleSyncStart(data) {
-        console.log('🎵 Sync start received:', data);
+        console.log('Sync start received:', data);
         
         this.currentSong = data.song;
-        this.bpm = data.bpm;
+        this.originalBpm = data.bpm;
+        this.currentBpm = data.bpm;
         
-        // 現在時刻を基準に開始時刻を設定
+        // テンポ変更履歴をリセット
+        this.tempoChanges = [];
+        this.baseMusicTime = 0;
+        this.lastTempoChangeTime = 0;
+        
         const currentTime = performance.now();
         
-        // 既に開始済みの場合（途中参加）
         if (data.elapsedTime && data.elapsedTime > 0) {
+            // 途中参加の場合
             this.startTime = currentTime - (data.elapsedTime * 1000);
-            console.log(`⏰ Joining mid-performance: elapsed=${data.elapsedTime}s, startTime=${this.startTime}`);
-            this.startPerformance();
+            this.baseMusicTime = data.elapsedTime;
+            this.lastTempoChangeTime = currentTime;
+            console.log(`Joining mid-performance: elapsed=${data.elapsedTime}s`);
         } else {
-            // 新規開始 - すぐに開始
+            // 新規開始
             this.startTime = currentTime;
-            console.log(`⏰ New performance start: startTime=${this.startTime}`);
-            this.startPerformance();
+            this.baseMusicTime = 0;
+            this.lastTempoChangeTime = currentTime;
+            console.log(`New performance start`);
         }
         
+        this.isPlaying = true;
         this.emit('syncStart', {
             song: this.currentSong,
             startTime: this.startTime,
-            bpm: this.bpm,
+            bpm: this.currentBpm,
             delay: 0
-        });
-    }
-
-    handleSyncStop(data) {
-        console.log('🛑 Sync stop received');
-        
-        this.isPlaying = false;
-        this.currentSong = null;
-        this.startTime = 0;
-        
-        this.emit('syncStop', data);
-    }
-
-    handleTempoChange(data) {
-        console.log('🎶 Tempo change:', data.bpm);
-        
-        this.bpm = data.bpm;
-        this.emit('tempoChange', data);
-    }
-
-    startPerformance() {
-        if (!this.currentSong) {
-            console.error('❌ Cannot start performance - no song data');
-            return;
-        }
-
-        this.isPlaying = true;
-        console.log('🎹 Performance started');
-        console.log('Song data:', {
-            id: this.currentSong.id,
-            title: this.currentSong.title,
-            duration: this.currentSong.duration,
-            melodyNotes: this.currentSong.melody?.length || 0,
-            accompanimentNotes: this.currentSong.accompaniment?.length || 0
         });
         
         this.emit('performanceStart', {
             song: this.currentSong,
             startTime: this.startTime
         });
+    }
+
+    handleSyncStop(data) {
+        console.log('Sync stop received');
+        
+        this.isPlaying = false;
+        this.currentSong = null;
+        this.startTime = 0;
+        this.tempoChanges = [];
+        this.baseMusicTime = 0;
+        this.lastTempoChangeTime = 0;
+        
+        this.emit('syncStop', data);
+    }
+
+    handleTempoChange(data) {
+        console.log('🎶 [DEBUG] Tempo change received:', data);
+        
+        const currentTime = this.getCurrentTime();
+        const oldMusicTime = this.getMusicTime();
+        
+        console.log('🎶 [DEBUG] Before tempo change:');
+        console.log('  - Current time:', currentTime);
+        console.log('  - Old music time:', oldMusicTime.toFixed(3));
+        console.log('  - Current BPM:', this.currentBpm);
+        console.log('  - New BPM:', data.bpm);
+        console.log('  - Base music time:', this.baseMusicTime.toFixed(3));
+        console.log('  - Last tempo change time:', this.lastTempoChangeTime);
+        
+        // テンポ変更を記録
+        this.tempoChanges.push({
+            time: currentTime,
+            oldBpm: this.currentBpm,
+            newBpm: data.bpm,
+            musicTimeAtChange: oldMusicTime
+        });
+        
+        // 新しいテンポ設定
+        const oldBpm = this.currentBpm;
+        this.currentBpm = data.bpm;
+        this.baseMusicTime = oldMusicTime;
+        this.lastTempoChangeTime = currentTime;
+        
+        console.log('🎶 [DEBUG] After tempo change:');
+        console.log('  - Updated current BPM:', this.currentBpm);
+        console.log('  - Updated base music time:', this.baseMusicTime.toFixed(3));
+        console.log('  - Updated last tempo change time:', this.lastTempoChangeTime);
+        console.log('  - Tempo changes count:', this.tempoChanges.length);
+        
+        // 即座にgetMusicTimeをテスト
+        setTimeout(() => {
+            const newMusicTime = this.getMusicTime();
+            console.log('🎶 [DEBUG] Music time 100ms after tempo change:', newMusicTime.toFixed(3));
+        }, 100);
+        
+        this.emit('tempoChange', {
+            ...data,
+            musicTime: oldMusicTime,
+            oldBpm: oldBpm
+        });
+    }
+
+    getMusicTime() {
+        if (!this.isPlaying || !this.startTime) {
+            console.log('🎵 [DEBUG] getMusicTime: Not playing');
+            return 0;
+        }
+        
+        const currentTime = this.getCurrentTime();
+        
+        if (this.tempoChanges.length === 0) {
+            // テンポ変更がない場合は単純計算
+            const realTimeElapsed = (currentTime - this.startTime) / 1000;
+            const musicTime = Math.max(0, realTimeElapsed);
+            
+            console.log('🎵 [DEBUG] getMusicTime (no tempo changes):');
+            console.log('  - Real time elapsed:', realTimeElapsed.toFixed(3));
+            console.log('  - Music time:', musicTime.toFixed(3));
+            
+            return musicTime;
+        }
+        
+        // 最後のテンポ変更からの経過時間を計算
+        const timeSinceLastChange = (currentTime - this.lastTempoChangeTime) / 1000;
+        
+        // 現在のテンポでの音楽時間を計算
+        const tempoRatio = this.currentBpm / this.originalBpm;
+        const musicTimeElapsed = timeSinceLastChange * tempoRatio;
+        
+        const totalMusicTime = this.baseMusicTime + musicTimeElapsed;
+        
+        // 詳細デバッグログ
+        console.log('🎵 [DEBUG] getMusicTime (with tempo changes):');
+        console.log('  - Current time:', currentTime.toFixed(3));
+        console.log('  - Last tempo change time:', this.lastTempoChangeTime.toFixed(3));
+        console.log('  - Time since last change:', timeSinceLastChange.toFixed(3));
+        console.log('  - Original BPM:', this.originalBpm);
+        console.log('  - Current BPM:', this.currentBpm);
+        console.log('  - Tempo ratio:', tempoRatio.toFixed(3));
+        console.log('  - Music time elapsed since change:', musicTimeElapsed.toFixed(3));
+        console.log('  - Base music time:', this.baseMusicTime.toFixed(3));
+        console.log('  - Total music time:', totalMusicTime.toFixed(3));
+        console.log('  - Tempo changes count:', this.tempoChanges.length);
+        
+        return Math.max(0, totalMusicTime);
+    }
+
+    // テンポを考慮したビート計算
+    getCurrentBeat() {
+        const musicTime = this.getMusicTime();
+        const beatsPerSecond = this.currentBpm / 60;
+        return musicTime * beatsPerSecond;
+    }
+
+    // 小節数計算
+    getCurrentMeasure(timeSignature = 4) {
+        const beat = this.getCurrentBeat();
+        return Math.floor(beat / timeSignature) + 1;
     }
 
     send(data) {
@@ -261,7 +364,6 @@ class PianoSyncCore {
         const roundTripTime = currentTime - pongData.timestamp;
         this.latency = roundTripTime;
         
-        // サーバー時刻オフセット更新
         const serverTime = pongData.serverTime;
         const networkDelay = roundTripTime / 2;
         this.serverTimeOffset = serverTime - currentTime + networkDelay;
@@ -271,39 +373,14 @@ class PianoSyncCore {
             serverTimeOffset: this.serverTimeOffset
         });
 
-        // 高レイテンシーの警告
         if (this.latency > this.options.syncThreshold) {
-            console.warn(`⚠️ High latency detected: ${this.latency.toFixed(2)}ms`);
+            console.warn(`High latency detected: ${this.latency.toFixed(2)}ms`);
             this.emit('highLatency', { latency: this.latency });
         }
     }
 
     getCurrentTime() {
-        // 常にperformance.nowを使用（ミリ秒）
         return performance.now();
-    }
-
-    getMusicTime() {
-        if (!this.isPlaying || !this.startTime) {
-            console.log(`🕐 getMusicTime: Not playing (isPlaying: ${this.isPlaying}, startTime: ${this.startTime})`);
-            return 0;
-        }
-        
-        const currentTime = this.getCurrentTime();
-        const musicTime = (currentTime - this.startTime) / 1000; // 秒に変換
-        
-        if (musicTime < 0) {
-            console.log(`⏰ Music time is negative: ${musicTime.toFixed(3)}s (current: ${currentTime}, start: ${this.startTime})`);
-            return 0;
-        }
-        
-        // 正常な音楽時刻の場合のみ定期ログ
-        if (Math.floor(musicTime * 10) !== Math.floor((this.lastLoggedTime || 0) * 10)) {
-            console.log(`🎵 Music time: ${musicTime.toFixed(2)}s`);
-            this.lastLoggedTime = musicTime;
-        }
-        
-        return musicTime;
     }
 
     getServerTime() {
@@ -359,12 +436,18 @@ class PianoSyncCore {
     }
 
     requestTempoChange(newBpm) {
+        console.log('[DEBUG] requestTempoChange called with BPM:', newBpm);
+        console.log('[DEBUG] Current connection status:', this.isWebSocketConnected());
+        console.log('[DEBUG] WebSocket ready state:', this.ws ? this.ws.readyState : 'null');
+        
         this.send({
             type: 'control',
             action: 'tempo',
             bpm: newBpm,
             timestamp: this.getCurrentTime()
         });
+        
+        console.log('[DEBUG] Tempo change request sent to server');
     }
 
     // ユーティリティメソッド
@@ -380,16 +463,19 @@ class PianoSyncCore {
             serverTimeOffset: this.serverTimeOffset,
             isPlaying: this.isPlaying,
             currentSong: this.currentSong,
-            bpm: this.bpm
+            originalBpm: this.originalBpm,
+            currentBpm: this.currentBpm,
+            musicTime: this.getMusicTime(),
+            currentBeat: this.getCurrentBeat()
         };
     }
 
-    // Web Audio APIの再開（ユーザーアクション後に呼ぶ）
+    // Web Audio APIの再開
     async resumeAudioContext() {
         if (this.audioContext && this.audioContext.state === 'suspended') {
             try {
                 await this.audioContext.resume();
-                console.log('🎵 Audio context resumed');
+                console.log('Audio context resumed');
                 return true;
             } catch (error) {
                 console.error('Failed to resume audio context:', error);
@@ -409,7 +495,7 @@ class PianoSyncCore {
             this.audioContext.close();
         }
         
-        console.log('🔌 Piano Sync Core disconnected');
+        console.log('Piano Sync Core disconnected');
     }
 }
 

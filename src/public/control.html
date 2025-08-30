@@ -377,6 +377,20 @@
                     clientType: 'master-control'
                 });
 
+                // WebSocket接続完了を待つ
+                await new Promise((resolve) => {
+                    this.syncCore.on('connected', () => {
+                        console.log('[DEBUG] SyncCore connected successfully');
+                        resolve();
+                    });
+                    
+                    // タイムアウト処理
+                    setTimeout(() => {
+                        console.log('[DEBUG] SyncCore connection timeout');
+                        resolve();
+                    }, 5000);
+                });
+
                 // イベントハンドラー設定
                 this.setupEventHandlers();
                 
@@ -420,12 +434,20 @@
 
                 // テンポスライダー
                 document.getElementById('tempoSlider').addEventListener('input', (e) => {
-                    const value = e.target.value;
+                    const value = parseInt(e.target.value);
+                    console.log('[DEBUG] Tempo slider changed to:', value);
+                    
                     document.getElementById('tempoValue').textContent = value;
                     
                     // リアルタイムテンポ変更
-                    if (this.currentPerformance) {
-                        this.syncCore.requestTempoChange(parseInt(value));
+                    if (masterControl.currentPerformance) {
+                        console.log('[DEBUG] Performance is active, requesting tempo change');
+                        console.log('[DEBUG] masterControl.syncCore:', !!masterControl.syncCore);
+                        console.log('[DEBUG] syncCore connected:', masterControl.syncCore?.isWebSocketConnected());
+                        
+                        masterControl.syncCore.requestTempoChange(value);
+                    } else {
+                        console.log('[DEBUG] No active performance, tempo change not sent');
                     }
                 });
 
@@ -582,6 +604,20 @@
                         }
                     }
                     
+                    // 演奏状態の同期（現在の状態と異なる場合のみ更新）
+                    const isClientPlaying = Boolean(this.currentPerformance?.status === 'playing');
+                    
+                    if (isServerPlaying !== isClientPlaying) {
+                        console.log(`[DEBUG] State sync needed: server=${isServerPlaying}, client=${isClientPlaying}`);
+                        
+                        if (isServerPlaying) {
+                            const songTitle = data.system.currentSong || '不明な楽曲';
+                            this.updatePerformanceStatus('playing', { title: songTitle });
+                        } else {
+                            this.updatePerformanceStatus('stopped');
+                        }
+                    }
+
                     // クライアントリスト更新
                     if (data.clients && Array.isArray(data.clients)) {
                         this.updateClientsList(data.clients);
@@ -674,34 +710,14 @@
                 }
             }
 
-            handleServerMessage(data) {
-                // サーバーからのメッセージを処理
-                switch(data.type) {
-                    case 'sync_start':
-                        this.updatePerformanceStatus('playing', data.song);
-                        this.log(`演奏開始: ${data.song.title}`);
-                        break;
-                        
-                    case 'sync_stop':
-                        this.updatePerformanceStatus('stopped');
-                        this.log('演奏が停止されました');
-                        break;
-                        
-                    case 'tempo_change':
-                        this.log(`テンポ変更: ${data.bpm} BPM`);
-                        break;
-                        
-                    default:
-                        this.log(`サーバーメッセージ: ${data.type}`);
-                }
-            }
-
             updatePerformanceStatus(status, song = null) {
+                console.log('[DEBUG] updatePerformanceStatus called with:', status, song);
+                
                 // DOM要素の安全な取得
                 const safeGetElement = (id) => {
                     const element = document.getElementById(id);
                     if (!element) {
-                        // console.warn(`Element not found: ${id}`);
+                        console.warn(`Element not found: ${id}`);
                     }
                     return element;
                 };
@@ -724,7 +740,16 @@
                     if (stopBtn) stopBtn.disabled = false;
                     if (pauseBtn) pauseBtn.disabled = false;
                     
+                    // currentPerformanceを正しく設定
                     this.currentPerformance = { song, status: 'playing' };
+                    
+                    // systemStatusも更新
+                    if (!this.systemStatus) this.systemStatus = {};
+                    this.systemStatus.isPlaying = true;
+                    
+                    console.log('[DEBUG] Performance status set to playing');
+                    console.log('[DEBUG] this.currentPerformance:', this.currentPerformance);
+                    console.log('[DEBUG] this.systemStatus.isPlaying:', this.systemStatus.isPlaying);
                     
                     if (song) {
                         if (currentSongTitle) currentSongTitle.textContent = song.title || '不明な楽曲';
@@ -743,11 +768,15 @@
                     
                     this.currentPerformance = null;
                     
+                    if (!this.systemStatus) this.systemStatus = {};
+                    this.systemStatus.isPlaying = false;
+                    
+                    console.log('[DEBUG] Performance status set to stopped');
+                    console.log('[DEBUG] this.currentPerformance:', this.currentPerformance);
+                    
                     if (currentSongTitle) currentSongTitle.textContent = '未選択';
                     if (sessionStatus) sessionStatus.textContent = '停止中';
                 }
-                
-                console.log(`UI状態更新: ${status}`);
             }
         }
 
@@ -760,6 +789,8 @@
         });
 
         async function startPerformance() {
+            console.log('[DEBUG] startPerformance called');
+            
             const songId = document.getElementById('songSelect').value;
             const bpm = parseInt(document.getElementById('tempoSlider').value);
             
@@ -776,16 +807,24 @@
                 });
                 
                 const result = await response.json();
+                console.log('[DEBUG] Start performance response:', result);
+                
                 if (result.success) {
+                    // 手動で演奏状態を設定
+                    masterControl.updatePerformanceStatus('playing', result.song);
                     masterControl.log(`演奏開始: ${result.song.title}`);
-                    // UIの更新は WebSocket メッセージで行われる
+                    
+                    // 確認ログ
+                    setTimeout(() => {
+                        console.log('[DEBUG] After startPerformance:');
+                        console.log('  currentPerformance:', masterControl.currentPerformance);
+                        console.log('  systemStatus.isPlaying:', masterControl.systemStatus?.isPlaying);
+                    }, 100);
                 } else {
                     alert('演奏の開始に失敗しました: ' + result.error);
-                    masterControl.log('演奏開始エラー: ' + result.error, 'error');
                 }
             } catch (error) {
-                alert('演奏の開始に失敗しました');
-                masterControl.log('演奏開始エラー: ' + error.message, 'error');
+                console.error('[DEBUG] Start performance error:', error);
             }
         }
 

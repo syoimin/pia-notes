@@ -260,6 +260,8 @@ class PianoSyncServer {
         const client = this.connectedClients.get(clientId);
         if (!client) return;
 
+        console.log(`[DEBUG] Message from ${clientId}:`, data);
+
         switch (data.type) {
             case 'register':
                 client.type = data.clientType;
@@ -299,6 +301,7 @@ class PianoSyncServer {
                 break;
 
             case 'control':
+                console.log('[DEBUG] Control message received:', data)
                 this.handleControlMessage(data);
                 break;
                 
@@ -317,6 +320,8 @@ class PianoSyncServer {
     }
 
     handleControlMessage(data) {
+        console.log('[DEBUG] Control message received:', data);
+        
         switch (data.action) {
             case 'start':
                 this.startPerformance(data.songId, data.bpm);
@@ -325,6 +330,7 @@ class PianoSyncServer {
                 this.stopPerformance();
                 break;
             case 'tempo':
+                console.log('[DEBUG] Tempo change request:', data.bpm);
                 this.changeTempo(data.bpm);
                 break;
         }
@@ -410,17 +416,27 @@ class PianoSyncServer {
     }
 
     changeTempo(newBpm) {
+        console.log('[DEBUG] changeTempo called with BPM:', newBpm);
+        console.log('[DEBUG] Current session exists:', !!this.currentSession);
+        
         if (this.currentSession) {
+            console.log('[DEBUG] Updating session BPM from', this.currentSession.bpm, 'to', newBpm);
+            
             this.currentSession.bpm = newBpm;
             this.systemStatus.bpm = newBpm;
 
-            this.broadcastToAll({
+            const message = {
                 type: 'tempo_change',
                 bpm: newBpm,
                 serverTime: Date.now()
-            });
+            };
+            
+            console.log('[DEBUG] Broadcasting tempo change message:', message);
+            this.broadcastToAll(message);
 
-            console.log(`🎶 Tempo changed to ${newBpm} BPM`);
+            console.log(`Tempo changed to ${newBpm} BPM`);
+        } else {
+            console.log('[DEBUG] No current session, tempo change ignored');
         }
     }
 
