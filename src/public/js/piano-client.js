@@ -39,11 +39,11 @@ class PianoClient {
 
         // ノーツサイズ定数（ヒット判定用）
         this.NOTE_HEIGHT = {
-            melody: 30,
+            melody: 20,
             accompaniment: 45
         };
         this.NOTE_WIDTH = {
-            melody: 50,
+            melody: 20,
             accompaniment: 45
         };
 
@@ -353,12 +353,6 @@ class PianoClient {
                 // ヒット直前で色を変える（ノーツの下部基準）
                 const noteBottomPosition = newTop + noteHeight;
                 const distanceToKeyboard = keyboardTopRelative - noteBottomPosition;
-                
-                if (distanceToKeyboard <= 25 && distanceToKeyboard > 0) {
-                    noteElement.style.background = `linear-gradient(135deg, ${this.options.fallbackColor}, #FF9800)`;
-                    const scaleAmount = 1 + (25 - distanceToKeyboard) / 25 * 0.4;
-                    noteElement.style.transform = `scale(${scaleAmount})`;
-                }
             } else if (timeUntilNote < -1) {
                 // 画面外に出たノーツを削除
                 console.log(`🗑️ Removing expired note: ${noteId} (timeUntil: ${timeUntilNote.toFixed(2)}s)`);
