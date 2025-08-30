@@ -1,16 +1,18 @@
 /**
  * Piano Client - タブレット用クライアント (88鍵グランドピアノ対応)
- * ノーツ表示と演奏インターフェース
- * 修正版: ノーツの下部が鍵盤上部に一致するタイミングで打鍵判定
+ * 改良版: 高速で縦長のノーツ表示に対応
  */
 
 class PianoClient {
     constructor(clientType, options = {}) {
         this.clientType = clientType; // 'melody' or 'accompaniment'
         this.options = {
-            noteSpeed: options.noteSpeed || 120, // pixels per second
-            lookAhead: options.lookAhead || 5, // seconds
+            noteSpeed: options.noteSpeed || 250, // 大幅に高速化: pixels per second (120→250)
+            lookAhead: options.lookAhead || 8, // 先読み時間を延長 (5→8秒)
             fallbackColor: clientType === 'melody' ? '#2196F3' : '#4CAF50',
+            minNoteHeight: options.minNoteHeight || 60, // 最小ノート高さ
+            maxNoteHeight: options.maxNoteHeight || 200, // 最大ノート高さ
+            noteHeightMultiplier: options.noteHeightMultiplier || 120, // 長さ計算係数
             ...options
         };
 
@@ -278,21 +280,11 @@ class PianoClient {
 
     updateNotes() {
         if (!this.currentSong || !this.syncCore.isPlaying) {
-            console.log(`❌ Cannot update notes - Song: ${!!this.currentSong}, Playing: ${this.syncCore?.isPlaying}`);
             return;
         }
         
         const currentTime = this.syncCore.getMusicTime();
         const notes = this.currentSong[this.clientType] || [];
-        
-        // フレームカウント（デバッグ用）
-        if (!this.frameCount) this.frameCount = 0;
-        this.frameCount++;
-        
-        // 10フレームごとにログ出力
-        if (this.frameCount % 10 === 0) {
-            // console.log(`🎬 Frame ${this.frameCount}: updateNotes called - Time: ${currentTime.toFixed(2)}s, Notes: ${notes.length}`);
-        }
         
         // 既存ノーツの位置を更新
         this.updateExistingNotes(currentTime);
@@ -303,29 +295,20 @@ class PianoClient {
         // 画面外のノーツを削除
         this.removeOffscreenNotes();
         
-        // ヒットタイミングのチェック（修正版）
+        // ヒットタイミングのチェック
         this.checkHitTiming(notes, currentTime);
-        
-        // DOM内のノーツ要素数を確認
-        const domNotes = this.notesContainer.querySelectorAll('.note');
-        if (this.frameCount % 30 === 0) { // 30フレームごと
-            // console.log(`📊 Stats: activeNotes=${this.activeNotes.size}, DOM notes=${domNotes.length}`);
-        }
     }
 
     updateExistingNotes(currentTime) {
         const containerHeight = this.container.clientHeight;
-        let updatedCount = 0;
-        
-        // console.log(`🔄 updateExistingNotes called - Active notes: ${this.activeNotes.size}`);
         
         this.activeNotes.forEach((noteElement, noteId) => {
             const parts = noteId.split('_');
             const noteTime = parseFloat(parts[1]);
             const timeUntilNote = noteTime - currentTime;
             
-            if (timeUntilNote > -1 && timeUntilNote <= this.options.lookAhead) {
-                // 新しい位置を計算
+            if (timeUntilNote > -2 && timeUntilNote <= this.options.lookAhead) {
+                // 高速落下計算
                 const progress = (this.options.lookAhead - timeUntilNote) / this.options.lookAhead;
                 
                 // 鍵盤ガイドの位置を取得
@@ -333,75 +316,49 @@ class PianoClient {
                 const containerRect = this.container.getBoundingClientRect();
                 const keyboardTopRelative = keyboardGuideRect.top - containerRect.top;
                 
-                // ノーツの下部が鍵盤の上部に到達するように位置を調整
-                const noteHeight = this.NOTE_HEIGHT[this.clientType];
+                // ノート高さを取得（data属性から）
+                const noteHeight = parseFloat(noteElement.dataset.noteHeight) || this.options.minNoteHeight;
+                
+                // 終点: ノーツの底が鍵盤上部に到達する位置
                 const targetPosition = keyboardTopRelative - noteHeight;
-                const newTop = Math.max(-noteHeight, progress * (targetPosition + noteHeight) - noteHeight);
                 
-                // 現在の位置を取得
-                const oldTop = parseInt(noteElement.style.top) || 0;
+                // 開始点: 画面上端より上
+                const startPosition = -noteHeight - 100;
                 
-                // 位置を更新（滑らかなアニメーション）
+                // 現在位置を計算（高速移動）
+                const totalDistance = targetPosition - startPosition;
+                const newTop = startPosition + (progress * totalDistance);
+                
                 noteElement.style.top = `${newTop}px`;
-                updatedCount++;
                 
-                // 位置が大きく変化した場合のみログ出力
-                if (Math.abs(newTop - oldTop) > 5) {
-                    console.log(`📍 Moving note ${parts[0]}: ${oldTop}px -> ${newTop}px (progress: ${progress.toFixed(3)}, timeUntil: ${timeUntilNote.toFixed(2)}s)`);
-                }
+                // ヒット直前の視覚効果
+                // const distanceToTarget = targetPosition - newTop;
+                // if (distanceToTarget < 30 && distanceToTarget > -10) {
+                //     noteElement.style.transform = 'scale(1.1)';
+                //     noteElement.style.boxShadow = '0 0 20px rgba(255, 152, 0, 0.8)';
+                // } else {
+                //     noteElement.style.transform = 'scale(1)';
+                //     noteElement.style.boxShadow = '0 4px 8px rgba(0,0,0,0.3)';
+                // }
                 
-                // ヒット直前で色を変える（ノーツの下部基準）
-                const noteBottomPosition = newTop + noteHeight;
-                const distanceToKeyboard = keyboardTopRelative - noteBottomPosition;
-            } else if (timeUntilNote < -1) {
+            } else if (timeUntilNote < -2) {
                 // 画面外に出たノーツを削除
-                console.log(`🗑️ Removing expired note: ${noteId} (timeUntil: ${timeUntilNote.toFixed(2)}s)`);
                 noteElement.remove();
                 this.activeNotes.delete(noteId);
             }
         });
-        
-        if (updatedCount > 0) {
-            // console.log(`✅ Updated ${updatedCount} existing notes`);
-        }
     }
 
     addNewNotes(notes, currentTime) {
-        let addedCount = 0;
-        // console.log(`🆕 addNewNotes called - Total notes: ${notes.length}, Current time: ${currentTime.toFixed(2)}s`);
-        
         notes.forEach((noteData, index) => {
             const timeUntilNote = noteData.time - currentTime;
             const noteId = `${noteData.note}_${noteData.time}_${index}`;
             
             // 新しいノーツで、表示範囲内の場合
             if (timeUntilNote > 0 && timeUntilNote <= this.options.lookAhead && !this.activeNotes.has(noteId)) {
-                // console.log(`➕ Adding new note: ${noteData.note} at ${noteData.time}s (${timeUntilNote.toFixed(2)}s until)`);
-                
-                // 連打対策：同じ音程の既存のノーツとの間隔をチェック
-                const existingNotesForSameNote = Array.from(this.activeNotes.entries())
-                    .filter(([id, element]) => id.startsWith(`${noteData.note}_`));
-                
-                let shouldCreateNote = true;
-                existingNotesForSameNote.forEach(([existingId, existingElement]) => {
-                    const existingTime = parseFloat(existingId.split('_')[1]);
-                    const timeDifference = Math.abs(noteData.time - existingTime);
-                    
-                    // 0.2秒以内の連続ノーツの場合は既存のノーツを削除
-                    if (timeDifference < 0.2 && existingTime < noteData.time) {
-                        existingElement.remove();
-                        this.activeNotes.delete(existingId);
-                    }
-                });
-                
-                if (shouldCreateNote) {
-                    this.createNoteElement(noteData, timeUntilNote, index);
-                    addedCount++;
-                }
+                this.createVerticalNoteElement(noteData, timeUntilNote, index);
             }
         });
-        
-        // console.log(`✅ Added ${addedCount} new notes`);
     }
 
     removeOffscreenNotes() {
@@ -411,10 +368,9 @@ class PianoClient {
             const rect = noteElement.getBoundingClientRect();
             
             // 画面下端より下に出たノーツを削除
-            if (rect.top > containerHeight + 50) {
+            if (rect.top > containerHeight + 100) {
                 noteElement.remove();
                 this.activeNotes.delete(noteId);
-                // console.log(`🗑️ Removed offscreen note: ${noteId}`);
             }
         });
     }
@@ -435,96 +391,149 @@ class PianoClient {
         });
     }
 
-    createNoteElement(noteData, timeUntilNote, index) {
+    /**
+     * 縦長ノーツ要素を作成（改良版）
+     */
+    createVerticalNoteElement(noteData, timeUntilNote, index) {
         const note = document.createElement('div');
-        note.className = `note ${this.clientType}`;
-        note.textContent = noteData.note.replace(/[0-9]/g, ''); // オクターブ番号を削除
+        const isWhite = this.isWhiteKey(noteData.note);
+        
+        // ノーツの長さを音符の長さに基づいて計算
+        const duration = noteData.duration || 0.5; // デフォルト0.5秒
+        const calculatedHeight = Math.max(
+            this.options.minNoteHeight,
+            Math.min(
+                this.options.maxNoteHeight,
+                duration * this.options.noteHeightMultiplier
+            )
+        );
+        
+        note.className = `note ${this.clientType} ${isWhite ? 'white-key-note' : 'black-key-note'}`;
         note.dataset.noteId = `${noteData.note}_${noteData.time}_${index}`;
+        note.dataset.noteHeight = calculatedHeight; // 高さをdata属性に保存
         
         // 位置計算
-        const containerHeight = this.container.clientHeight;
         const progress = (this.options.lookAhead - timeUntilNote) / this.options.lookAhead;
-        
-        // 鍵盤ガイドの位置を取得
         const keyboardGuideRect = this.keyboardGuide.getBoundingClientRect();
         const containerRect = this.container.getBoundingClientRect();
         const keyboardTopRelative = keyboardGuideRect.top - containerRect.top;
         
-        // ノーツの高さを固定値に設定（連打対応）
-        const noteHeight = this.NOTE_HEIGHT[this.clientType];
-        const targetPosition = keyboardTopRelative - noteHeight;
-        const topPosition = Math.max(-noteHeight, progress * (targetPosition + noteHeight) - noteHeight);
+        // 初期位置（画面上端より上から開始）
+        const startPosition = -calculatedHeight - 100;
+        const targetPosition = keyboardTopRelative - calculatedHeight;
+        const totalDistance = targetPosition - startPosition;
+        const topPosition = startPosition + (progress * totalDistance);
+        
         const leftPosition = this.calculateNotePosition(noteData);
         
-        console.log(`📍 Creating note ${noteData.note}: progress=${progress.toFixed(2)}, top=${topPosition}px, left=${leftPosition}px, target=${targetPosition}px`);
-        
-        // スタイル設定（高さを固定）
-        const noteWidth = this.NOTE_WIDTH[this.clientType];
+        // 縦長ノーツのスタイル設定
+        const noteWidth = isWhite ? 36 : 22; // 白鍵/黒鍵に応じた幅
         note.style.cssText = `
             position: absolute;
             top: ${topPosition}px;
-            left: ${leftPosition}px;
+            left: ${leftPosition - (noteWidth / 2)}px;
             width: ${noteWidth}px;
-            height: ${noteHeight}px;
-            border-radius: 50%;
-            background: ${this.options.fallbackColor};
+            height: ${calculatedHeight}px;
+            border-radius: 6px 6px 3px 3px;
+            background: ${isWhite ? 
+                'linear-gradient(180deg, #2196F3 0%, #1976D2 70%, #0D47A1 100%)' : 
+                'linear-gradient(180deg, #FF6B35 0%, #D84315 70%, #BF360C 100%)'
+            };
             color: white;
             display: flex;
-            align-items: center;
+            align-items: flex-end;
             justify-content: center;
             font-weight: bold;
-            font-size: 14px;
+            font-size: 11px;
             box-shadow: 0 4px 8px rgba(0,0,0,0.3);
             z-index: 10;
-            transition: transform 0.1s ease;
-            border: 2px solid rgba(255,255,255,0.3);
+            transition: transform 0.1s ease, box-shadow 0.1s ease;
+            border: 2px solid rgba(255,255,255,0.4);
+            padding-bottom: 4px;
+            overflow: hidden;
         `;
+        
+        // ノート名表示
+        const noteLabel = document.createElement('div');
+        noteLabel.textContent = noteData.note.replace(/[0-9]/g, '');
+        noteLabel.style.cssText = `
+            background: rgba(0,0,0,0.3);
+            padding: 2px 4px;
+            border-radius: 3px;
+            font-size: 10px;
+            margin-bottom: 2px;
+        `;
+        note.appendChild(noteLabel);
         
         // 指番号表示
         if (noteData.finger) {
-            const fingerIndicator = document.createElement('span');
+            const fingerIndicator = document.createElement('div');
             fingerIndicator.textContent = noteData.finger;
             fingerIndicator.style.cssText = `
                 position: absolute;
-                top: -10px;
-                right: -10px;
+                top: 4px;
+                right: 4px;
                 width: 18px;
                 height: 18px;
-                background: rgba(255,255,255,0.9);
+                background: rgba(255,255,255,0.95);
                 color: #333;
                 border-radius: 50%;
-                font-size: 11px;
+                font-size: 10px;
                 font-weight: bold;
                 display: flex;
                 align-items: center;
                 justify-content: center;
+                box-shadow: 0 1px 3px rgba(0,0,0,0.3);
             `;
             note.appendChild(fingerIndicator);
+        }
+        
+        // 音符の長さを視覚的に示すインジケーター
+        if (calculatedHeight > 80) {
+            const durationIndicator = document.createElement('div');
+            durationIndicator.style.cssText = `
+                position: absolute;
+                top: 25px;
+                left: 2px;
+                right: 2px;
+                height: ${calculatedHeight - 35}px;
+                background: linear-gradient(180deg, 
+                    rgba(255,255,255,0.2) 0%, 
+                    rgba(255,255,255,0.1) 50%, 
+                    rgba(255,255,255,0.05) 100%
+                );
+                border-radius: 2px;
+                border: 1px solid rgba(255,255,255,0.1);
+            `;
+            note.appendChild(durationIndicator);
         }
         
         this.notesContainer.appendChild(note);
         this.activeNotes.set(note.dataset.noteId, note);
         
-        // console.log(`✅ Note element created and added to DOM: ${noteData.note}`);
+        console.log(`✅ Created vertical note ${noteData.note}: height=${calculatedHeight}px, duration=${duration}s`);
+    }
+
+    isWhiteKey(noteName) {
+        const baseNote = noteName.replace(/[0-9]/g, '');
+        return ['A', 'B', 'C', 'D', 'E', 'F', 'G'].includes(baseNote);
     }
 
     calculateNotePosition(noteData) {
         // positionプロパティがある場合はそれを使用
         if (noteData.position !== undefined) {
-            // console.log(`Using provided position: ${noteData.position}px for note ${noteData.note}`);
             return noteData.position;
         }
 
-        // 88鍵対応のノートマッピング（A0からC8まで）
+        // 88鍵対応のノートマッピング
         const keyPositions = this.generate88KeyPositions();
         const position = keyPositions[noteData.note];
         
         if (position !== undefined) {
-            // console.log(`Note ${noteData.note} mapped to position: ${position}px`);
             return position;
         }
         
-        // フォールバック: 既存の計算方法
+        // フォールバック計算
         const noteMap = {
             'C': 100, 'C#': 115, 'Db': 115,
             'D': 140, 'D#': 155, 'Eb': 155,
@@ -538,21 +547,17 @@ class PianoClient {
         const noteWithoutOctave = noteData.note.replace(/[0-9]/g, '');
         const basePosition = noteMap[noteWithoutOctave] || 200;
         
-        // オクターブによる調整
         const octave = parseInt(noteData.note.match(/\d/)?.[0] || '4');
-        const octaveOffset = (octave - 4) * 280; // オクターブごとに280px移動
+        const octaveOffset = (octave - 4) * 280;
         
-        const calculatedPosition = Math.max(50, Math.min(window.innerWidth - 100, basePosition + octaveOffset));
-        console.log(`Calculated position: ${calculatedPosition}px for note ${noteData.note} (base: ${basePosition}, octave: ${octave})`);
-        
-        return calculatedPosition;
+        return Math.max(50, Math.min(window.innerWidth - 100, basePosition + octaveOffset));
     }
 
     generate88KeyPositions() {
         const positions = {};
-        const keyWidth = 28; // 白鍵の幅
-        const blackKeyWidth = 18; // 黒鍵の幅
-        const startX = 50; // 開始位置
+        const keyWidth = 28;
+        const blackKeyWidth = 18;
+        const startX = 50;
         let currentX = startX;
 
         // A0, A#0, B0
@@ -575,11 +580,9 @@ class PianoClient {
                     positions[fullNote] = currentX;
                     currentX += keyWidth;
                 } else {
-                    // 黒鍵は前の白鍵の位置から少し右にオフセット
                     positions[fullNote] = currentX - keyWidth + (keyWidth - blackKeyWidth) / 2;
                 }
 
-                // C8で終了
                 if (octave === 8 && noteName === 'C') {
                     break;
                 }
@@ -590,16 +593,16 @@ class PianoClient {
     }
 
     highlightKey(noteName) {
-        // 対応する鍵盤をハイライト
         const key = this.keyboardGuide?.querySelector(`[data-note="${noteName}"]`);
         if (key) {
             key.classList.add('active');
             key.style.background = this.options.fallbackColor;
             
-            // 短時間後にハイライトを解除
             setTimeout(() => {
                 key.classList.remove('active');
-                key.style.background = key.classList.contains('black') ? 'linear-gradient(to bottom, #333, #111)' : 'linear-gradient(to bottom, #ffffff, #f5f5f5)';
+                key.style.background = key.classList.contains('black') ? 
+                    'linear-gradient(to bottom, #333, #111)' : 
+                    'linear-gradient(to bottom, #ffffff, #f5f5f5)';
             }, 200);
         }
     }
@@ -650,7 +653,6 @@ class PianoClient {
             
             latencyText.textContent = `${latency.toFixed(0)}ms`;
             
-            // 高レイテンシーの警告
             if (latency > 50) {
                 latencyText.style.color = '#ff9800';
             } else {
@@ -662,7 +664,6 @@ class PianoClient {
     handleKeyPress(key) {
         if (!key.dataset.note) return;
         
-        // 視覚的フィードバック
         key.style.transform = 'translateY(2px)';
         key.style.background = this.options.fallbackColor;
         
@@ -673,7 +674,6 @@ class PianoClient {
                 'linear-gradient(to bottom, #ffffff, #f5f5f5)';
         }, 150);
         
-        // 音声フィードバック（オプション）
         this.playNoteSound(key.dataset.note);
     }
 
@@ -684,7 +684,6 @@ class PianoClient {
             const midiNote = PianoSyncUtils.noteToMidi(noteName);
             if (!midiNote) return;
             
-            // 簡単なサイン波での音生成
             const oscillator = this.syncCore.audioContext.createOscillator();
             const gainNode = this.syncCore.audioContext.createGainNode ? 
                               this.syncCore.audioContext.createGainNode() : 
@@ -693,14 +692,12 @@ class PianoClient {
             oscillator.connect(gainNode);
             gainNode.connect(this.syncCore.audioContext.destination);
             
-            // 周波数計算 (A4 = 440Hz)
             const frequency = 440 * Math.pow(2, (midiNote - 69) / 12);
             oscillator.frequency.value = frequency;
-            oscillator.type = 'triangle'; // より柔らかい音
+            oscillator.type = 'triangle';
             
-            // エンベロープ
             const now = this.syncCore.audioContext.currentTime;
-            const gainValue = this.clientType === 'melody' ? 0.15 : 0.12; // 伴奏は少し小さく
+            const gainValue = this.clientType === 'melody' ? 0.15 : 0.12;
             
             gainNode.gain.setValueAtTime(0, now);
             gainNode.gain.linearRampToValueAtTime(gainValue, now + 0.01);
@@ -709,19 +706,16 @@ class PianoClient {
             oscillator.start(now);
             oscillator.stop(now + 0.8);
             
-            // console.log(`🎵 Played note: ${noteName} (${frequency.toFixed(2)}Hz)`);
         } catch (error) {
             console.log('Sound play failed:', error);
         }
     }
 
     playNoteSound(noteName) {
-        // playKeySoundと同じ実装
         this.playKeySound(noteName);
     }
 
     handleResize() {
-        // リサイズ時の処理
         this.clearNotes();
     }
 
@@ -735,51 +729,6 @@ class PianoClient {
         this.stopAnimation();
     }
 
-    // デバッグ用: 強制的にテストノーツを作成
-    createTestNote() {
-        // console.log('🧪 Creating test note for debugging');
-
-        const testNote = document.createElement('div');
-        testNote.className = 'note test';
-        testNote.textContent = 'TEST';
-        testNote.style.cssText = `
-            position: absolute;
-            top: 50px;
-            left: 200px;
-            width: 60px;
-            height: 60px;
-            border-radius: 50%;
-            background: red;
-            color: white;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: bold;
-            z-index: 999;
-            animation: testDrop 3s linear;
-        `;
-        
-        // CSS アニメーションを追加
-        const style = document.createElement('style');
-        style.textContent = `
-            @keyframes testDrop {
-                0% { top: 50px; }
-                100% { top: 500px; }
-            }
-        `;
-        document.head.appendChild(style);
-        
-        if (this.notesContainer) {
-            this.notesContainer.appendChild(testNote);
-        }
-        
-        // 3秒後に削除
-        setTimeout(() => {
-            testNote.remove();
-            style.remove();
-        }, 3000);
-    }
-
     destroy() {
         this.stopAnimation();
         this.clearNotes();
@@ -787,12 +736,10 @@ class PianoClient {
         if (this.syncCore) {
             this.syncCore.disconnect();
         }
-
-        // console.log(`🔌 Piano Client (${this.clientType}) destroyed`);
     }
 }
 
-// PianoSyncUtils（必要な場合）
+// PianoSyncUtils
 class PianoSyncUtils {
     static noteToMidi(noteName) {
         const noteMap = {
