@@ -1,6 +1,7 @@
 /**
  * Piano Client - タブレット用クライアント (88鍵グランドピアノ対応)
  * ノーツ表示と演奏インターフェース
+ * 修正版: ノーツの下部が鍵盤上部に一致するタイミングで打鍵判定
  */
 
 class PianoClient {
@@ -35,6 +36,16 @@ class PianoClient {
         this.lastFrameTime = 0;
         this.frameRate = 60;
         this.frameInterval = 1000 / 60; // 60FPS固定
+
+        // ノーツサイズ定数（ヒット判定用）
+        this.NOTE_HEIGHT = {
+            melody: 30,
+            accompaniment: 45
+        };
+        this.NOTE_WIDTH = {
+            melody: 50,
+            accompaniment: 45
+        };
 
         this.initialize();
     }
@@ -292,7 +303,7 @@ class PianoClient {
         // 画面外のノーツを削除
         this.removeOffscreenNotes();
         
-        // ヒットタイミングのチェック
+        // ヒットタイミングのチェック（修正版）
         this.checkHitTiming(notes, currentTime);
         
         // DOM内のノーツ要素数を確認
@@ -316,7 +327,16 @@ class PianoClient {
             if (timeUntilNote > -1 && timeUntilNote <= this.options.lookAhead) {
                 // 新しい位置を計算
                 const progress = (this.options.lookAhead - timeUntilNote) / this.options.lookAhead;
-                const newTop = Math.max(0, progress * (containerHeight - 200));
+                
+                // 鍵盤ガイドの位置を取得
+                const keyboardGuideRect = this.keyboardGuide.getBoundingClientRect();
+                const containerRect = this.container.getBoundingClientRect();
+                const keyboardTopRelative = keyboardGuideRect.top - containerRect.top;
+                
+                // ノーツの下部が鍵盤の上部に到達するように位置を調整
+                const noteHeight = this.NOTE_HEIGHT[this.clientType];
+                const targetPosition = keyboardTopRelative - noteHeight;
+                const newTop = Math.max(-noteHeight, progress * (targetPosition + noteHeight) - noteHeight);
                 
                 // 現在の位置を取得
                 const oldTop = parseInt(noteElement.style.top) || 0;
@@ -330,10 +350,14 @@ class PianoClient {
                     console.log(`📍 Moving note ${parts[0]}: ${oldTop}px -> ${newTop}px (progress: ${progress.toFixed(3)}, timeUntil: ${timeUntilNote.toFixed(2)}s)`);
                 }
                 
-                // ヒット直前で色を変える
-                if (timeUntilNote <= 0.5 && timeUntilNote > 0) {
+                // ヒット直前で色を変える（ノーツの下部基準）
+                const noteBottomPosition = newTop + noteHeight;
+                const distanceToKeyboard = keyboardTopRelative - noteBottomPosition;
+                
+                if (distanceToKeyboard <= 25 && distanceToKeyboard > 0) {
                     noteElement.style.background = `linear-gradient(135deg, ${this.options.fallbackColor}, #FF9800)`;
-                    noteElement.style.transform = `scale(${1 + (0.5 - timeUntilNote) * 0.4})`;
+                    const scaleAmount = 1 + (25 - distanceToKeyboard) / 25 * 0.4;
+                    noteElement.style.transform = `scale(${scaleAmount})`;
                 }
             } else if (timeUntilNote < -1) {
                 // 画面外に出たノーツを削除
@@ -388,7 +412,6 @@ class PianoClient {
             
             // ヒットタイミングのチェック
             if (Math.abs(timeUntilNote) < 0.1) {
-                // console.log(`🎯 Hit timing for note: ${noteData.note}`);
                 this.highlightKey(noteData.note);
                 
                 // 自動演奏音を出す
@@ -405,21 +428,31 @@ class PianoClient {
         note.textContent = noteData.note.replace(/[0-9]/g, ''); // オクターブ番号を削除
         note.dataset.noteId = `${noteData.note}_${noteData.time}_${index}`;
         
-        // 位置計算の詳細ログ
+        // 位置計算
         const containerHeight = this.container.clientHeight;
         const progress = (this.options.lookAhead - timeUntilNote) / this.options.lookAhead;
-        const topPosition = Math.max(0, progress * (containerHeight - 200));
+        
+        // 鍵盤ガイドの位置を取得
+        const keyboardGuideRect = this.keyboardGuide.getBoundingClientRect();
+        const containerRect = this.container.getBoundingClientRect();
+        const keyboardTopRelative = keyboardGuideRect.top - containerRect.top;
+        
+        // ノーツの下部が鍵盤の上部に到達するように位置を調整
+        const noteHeight = this.NOTE_HEIGHT[this.clientType];
+        const targetPosition = keyboardTopRelative - noteHeight;
+        const topPosition = Math.max(-noteHeight, progress * (targetPosition + noteHeight) - noteHeight);
         const leftPosition = this.calculateNotePosition(noteData);
         
-        // console.log(`📍 Creating note ${noteData.note}: progress=${progress.toFixed(2)}, top=${topPosition}px, left=${leftPosition}px`);
+        console.log(`📍 Creating note ${noteData.note}: progress=${progress.toFixed(2)}, top=${topPosition}px, left=${leftPosition}px, target=${targetPosition}px`);
         
         // スタイル設定
+        const noteWidth = this.NOTE_WIDTH[this.clientType];
         note.style.cssText = `
             position: absolute;
             top: ${topPosition}px;
             left: ${leftPosition}px;
-            width: ${this.clientType === 'melody' ? '50px' : '45px'};
-            height: ${this.clientType === 'melody' ? '50px' : '45px'};
+            width: ${noteWidth}px;
+            height: ${noteHeight}px;
             border-radius: 50%;
             background: ${this.options.fallbackColor};
             color: white;
