@@ -260,8 +260,6 @@ class PianoSyncServer {
         const client = this.connectedClients.get(clientId);
         if (!client) return;
 
-        console.log(`[DEBUG] Message from ${clientId}:`, data);
-
         switch (data.type) {
             case 'register':
                 client.type = data.clientType;
