@@ -171,6 +171,122 @@
             background: var(--surface-bg);
             color: var(--text-secondary);
         }
+
+        /* ノーツ設定セクションのスタイル */
+        .notes-settings {
+            background: var(--card-bg);
+            padding: 20px;
+            border-radius: var(--border-radius);
+            margin: 20px 0;
+            border-left: 4px solid var(--warning-color);
+        }
+
+        .setting-group {
+            margin-bottom: 20px;
+        }
+
+        .setting-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            align-items: end;
+        }
+
+        .slider-container {
+            position: relative;
+        }
+
+        .slider-label {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+
+        .slider-value {
+            background: var(--primary-color);
+            color: white;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-weight: bold;
+            min-width: 50px;
+            text-align: center;
+        }
+
+        .custom-slider {
+            width: 100%;
+            height: 6px;
+            border-radius: 3px;
+            background: var(--surface-bg);
+            outline: none;
+            -webkit-appearance: none;
+        }
+
+        .custom-slider::-webkit-slider-thumb {
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: var(--primary-color);
+            cursor: pointer;
+        }
+
+        .custom-slider::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: var(--primary-color);
+            cursor: pointer;
+            border: none;
+        }
+
+        .apply-settings-btn {
+            background: var(--warning-color);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: var(--border-radius);
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            width: 100%;
+            margin-top: 15px;
+        }
+
+        .apply-settings-btn:hover {
+            background: #f57c00;
+            transform: translateY(-2px);
+        }
+
+        .apply-settings-btn:disabled {
+            background: var(--surface-bg);
+            color: var(--text-secondary);
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .settings-status {
+            margin-top: 10px;
+            padding: 10px;
+            border-radius: 4px;
+            font-size: 13px;
+            display: none;
+        }
+
+        .settings-status.success {
+            background: rgba(76, 175, 80, 0.1);
+            color: var(--success-color);
+            border: 1px solid var(--success-color);
+            display: block;
+        }
+
+        .settings-status.error {
+            background: rgba(244, 67, 54, 0.1);
+            color: var(--danger-color);
+            border: 1px solid var(--danger-color);
+            display: block;
+        }
         
         @media (max-width: 768px) {
             .control-grid {
@@ -183,6 +299,11 @@
             
             .tempo-slider {
                 width: 250px;
+            }
+
+            .setting-row {
+                grid-template-columns: 1fr;
+                gap: 10px;
             }
         }
     </style>
@@ -269,6 +390,79 @@
                     </div>
                 </div>
 
+                <!-- ノーツ設定セクション（新規追加） -->
+                <div class="notes-settings">
+                    <h3>🎵 ノーツ表示設定</h3>
+                    <p>タブレット上のノーツの動作を調整します</p>
+                    
+                    <div class="setting-group">
+                        <div class="setting-row">
+                            <!-- ノーツ落下速度 -->
+                            <div class="slider-container">
+                                <div class="slider-label">
+                                    <span>ノーツ落下速度</span>
+                                    <span class="slider-value" id="noteSpeedValue">250</span>
+                                </div>
+                                <input type="range" id="noteSpeedSlider" class="custom-slider"
+                                       min="100" max="500" value="250" step="10">
+                                <small style="color: var(--text-secondary); display: block; margin-top: 5px;">
+                                    pixels/秒 (100=ゆっくり, 500=高速)
+                                </small>
+                            </div>
+                            
+                            <!-- 先読み時間 -->
+                            <div class="slider-container">
+                                <div class="slider-label">
+                                    <span>先読み時間</span>
+                                    <span class="slider-value" id="lookAheadValue">8</span>
+                                </div>
+                                <input type="range" id="lookAheadSlider" class="custom-slider"
+                                       min="3" max="15" value="8" step="0.5">
+                                <small style="color: var(--text-secondary); display: block; margin-top: 5px;">
+                                    秒 (3=短い, 15=長い)
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="setting-group">
+                        <div class="setting-row">
+                            <!-- 最小ノート高さ -->
+                            <div class="slider-container">
+                                <div class="slider-label">
+                                    <span>最小ノート高さ</span>
+                                    <span class="slider-value" id="minNoteHeightValue">60</span>
+                                </div>
+                                <input type="range" id="minNoteHeightSlider" class="custom-slider"
+                                       min="30" max="120" value="60" step="5">
+                                <small style="color: var(--text-secondary); display: block; margin-top: 5px;">
+                                    pixels (30=小さい, 120=大きい)
+                                </small>
+                            </div>
+                            
+                            <!-- 最大ノート高さ -->
+                            <div class="slider-container">
+                                <div class="slider-label">
+                                    <span>最大ノート高さ</span>
+                                    <span class="slider-value" id="maxNoteHeightValue">200</span>
+                                </div>
+                                <input type="range" id="maxNoteHeightSlider" class="custom-slider"
+                                       min="100" max="400" value="200" step="10">
+                                <small style="color: var(--text-secondary); display: block; margin-top: 5px;">
+                                    pixels (100=小さい, 400=大きい)
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 設定情報表示 -->
+                    <div style="margin-top: 15px; padding: 15px; background: rgba(33, 150, 243, 0.1); border-radius: 8px; border: 1px solid rgba(33, 150, 243, 0.3);">
+                        <small style="color: var(--text-secondary);">
+                            💡 これらの設定は次回の演奏開始時に全タブレットに反映されます
+                        </small>
+                    </div>
+                </div>
+
                 <!-- システムログ -->
                 <div class="card">
                     <div class="card-header">
@@ -337,13 +531,16 @@
                 </div>
                 
                 <div class="form-group">
-                    <label class="form-label">ノーツ先読み時間 (秒)</label>
-                    <input type="number" id="lookAhead" class="form-input" value="5" min="2" max="10" step="0.5">
+                    <label class="form-label">レイテンシー警告閾値 (ms)</label>
+                    <input type="number" id="latencyThreshold" class="form-input" value="50" min="20" max="200">
                 </div>
                 
                 <div class="form-group">
-                    <label class="form-label">レイテンシー警告閾値 (ms)</label>
-                    <input type="number" id="latencyThreshold" class="form-input" value="50" min="20" max="200">
+                    <label class="form-label">フレームレート制限</label>
+                    <select id="frameRate" class="form-input">
+                        <option value="30">30 FPS</option>
+                        <option value="60" selected>60 FPS</option>
+                    </select>
                 </div>
             </div>
             
@@ -366,11 +563,23 @@
                 this.songs = [];
                 this.currentPerformance = null;
                 
+                // ノーツ設定のデフォルト値
+                this.notesSettings = {
+                    noteSpeed: 250,
+                    lookAhead: 8,
+                    minNoteHeight: 60,
+                    maxNoteHeight: 200,
+                    noteHeightMultiplier: 120
+                };
+                
                 this.initialize();
             }
 
             async initialize() {
                 console.log('🎹 Initializing Piano Master Control');
+                
+                // ノーツ設定UIの初期化
+                this.initializeNotesSettingsUI();
                 
                 // 同期システム初期化
                 this.syncCore = new PianoSyncCore({
@@ -384,7 +593,6 @@
                         resolve();
                     });
                     
-                    // タイムアウト処理
                     setTimeout(() => {
                         console.log('[DEBUG] SyncCore connection timeout');
                         resolve();
@@ -404,6 +612,45 @@
                 this.updatePerformanceStatus('stopped');
                 
                 this.log('Piano Master Control システム起動完了');
+            }
+
+            initializeNotesSettingsUI() {
+                // スライダーの初期化とイベントリスナー設定
+                const sliders = [
+                    { id: 'noteSpeedSlider', valueId: 'noteSpeedValue', key: 'noteSpeed' },
+                    { id: 'lookAheadSlider', valueId: 'lookAheadValue', key: 'lookAhead' },
+                    { id: 'minNoteHeightSlider', valueId: 'minNoteHeightValue', key: 'minNoteHeight' },
+                    { id: 'maxNoteHeightSlider', valueId: 'maxNoteHeightValue', key: 'maxNoteHeight' }
+                ];
+
+                sliders.forEach(slider => {
+                    const element = document.getElementById(slider.id);
+                    const valueElement = document.getElementById(slider.valueId);
+                    
+                    if (element && valueElement) {
+                        // 初期値設定
+                        element.value = this.notesSettings[slider.key];
+                        valueElement.textContent = this.notesSettings[slider.key];
+                        
+                        // スライダー変更イベント
+                        element.addEventListener('input', (e) => {
+                            const value = parseFloat(e.target.value);
+                            valueElement.textContent = value;
+                            this.notesSettings[slider.key] = value;
+                            
+                            // リアルタイムプレビュー効果
+                            valueElement.style.transform = 'scale(1.1)';
+                            setTimeout(() => {
+                                valueElement.style.transform = 'scale(1)';
+                            }, 200);
+                        });
+                    }
+                });
+            }
+
+            async applyNotesSettings() {
+                // この関数は使用しないが、将来の拡張性のために残す
+                this.log('ノーツ設定は次回演奏開始時に反映されます', 'info');
             }
 
             setupEventHandlers() {
@@ -442,9 +689,6 @@
                     // リアルタイムテンポ変更
                     if (masterControl.currentPerformance) {
                         console.log('[DEBUG] Performance is active, requesting tempo change');
-                        console.log('[DEBUG] masterControl.syncCore:', !!masterControl.syncCore);
-                        console.log('[DEBUG] syncCore connected:', masterControl.syncCore?.isWebSocketConnected());
-                        
                         masterControl.syncCore.requestTempoChange(value);
                     } else {
                         console.log('[DEBUG] No active performance, tempo change not sent');
@@ -603,20 +847,6 @@
                             safeUpdateElement('minLatency', min.toFixed(1) + ' ms');
                         }
                     }
-                    
-                    // 演奏状態の同期（現在の状態と異なる場合のみ更新）
-                    const isClientPlaying = Boolean(this.currentPerformance?.status === 'playing');
-                    
-                    if (isServerPlaying !== isClientPlaying) {
-                        console.log(`[DEBUG] State sync needed: server=${isServerPlaying}, client=${isClientPlaying}`);
-                        
-                        if (isServerPlaying) {
-                            const songTitle = data.system.currentSong || '不明な楽曲';
-                            this.updatePerformanceStatus('playing', { title: songTitle });
-                        } else {
-                            this.updatePerformanceStatus('stopped');
-                        }
-                    }
 
                     // クライアントリスト更新
                     if (data.clients && Array.isArray(data.clients)) {
@@ -626,15 +856,6 @@
                 } catch (error) {
                     console.error('Status update error:', error);
                     this.log(`状態更新エラー: ${error.message}`, 'error');
-                    
-                    // エラーの詳細をログに出力
-                    if (error.name === 'TypeError' && error.message.includes('textContent')) {
-                        this.log('DOM要素が見つかりません - HTMLの読み込みを確認してください', 'error');
-                    } else if (error.name === 'TypeError') {
-                        this.log('ネットワーク接続を確認してください', 'error');
-                    } else if (error.message.includes('HTTP')) {
-                        this.log('サーバーエラーが発生しました', 'error');
-                    }
                 }
             }
 
@@ -713,7 +934,6 @@
             updatePerformanceStatus(status, song = null) {
                 console.log('[DEBUG] updatePerformanceStatus called with:', status, song);
                 
-                // DOM要素の安全な取得
                 const safeGetElement = (id) => {
                     const element = document.getElementById(id);
                     if (!element) {
@@ -727,10 +947,8 @@
                 const stopBtn = safeGetElement('stopBtn');
                 const pauseBtn = safeGetElement('pauseBtn');
                 const currentSongTitle = safeGetElement('currentSongTitle');
-                const sessionStatus = safeGetElement('sessionStatus');
                 
                 if (status === 'playing') {
-                    // 演奏中の状態
                     if (indicator) {
                         indicator.className = 'performance-indicator playing';
                         indicator.textContent = '🎵 演奏中';
@@ -740,23 +958,15 @@
                     if (stopBtn) stopBtn.disabled = false;
                     if (pauseBtn) pauseBtn.disabled = false;
                     
-                    // currentPerformanceを正しく設定
                     this.currentPerformance = { song, status: 'playing' };
                     
-                    // systemStatusも更新
                     if (!this.systemStatus) this.systemStatus = {};
                     this.systemStatus.isPlaying = true;
                     
-                    console.log('[DEBUG] Performance status set to playing');
-                    console.log('[DEBUG] this.currentPerformance:', this.currentPerformance);
-                    console.log('[DEBUG] this.systemStatus.isPlaying:', this.systemStatus.isPlaying);
-                    
-                    if (song) {
-                        if (currentSongTitle) currentSongTitle.textContent = song.title || '不明な楽曲';
-                        if (sessionStatus) sessionStatus.textContent = '演奏中';
+                    if (song && currentSongTitle) {
+                        currentSongTitle.textContent = song.title || '不明な楽曲';
                     }
                 } else {
-                    // 停止中の状態
                     if (indicator) {
                         indicator.className = 'performance-indicator stopped';
                         indicator.textContent = '🛑 停止中';
@@ -771,11 +981,7 @@
                     if (!this.systemStatus) this.systemStatus = {};
                     this.systemStatus.isPlaying = false;
                     
-                    console.log('[DEBUG] Performance status set to stopped');
-                    console.log('[DEBUG] this.currentPerformance:', this.currentPerformance);
-                    
                     if (currentSongTitle) currentSongTitle.textContent = '未選択';
-                    if (sessionStatus) sessionStatus.textContent = '停止中';
                 }
             }
         }
@@ -787,6 +993,13 @@
         document.addEventListener('DOMContentLoaded', () => {
             masterControl = new PianoMasterControl();
         });
+
+        // ノーツ設定適用関数
+        async function applyNotesSettings() {
+            if (masterControl) {
+                await masterControl.applyNotesSettings();
+            }
+        }
 
         async function startPerformance() {
             console.log('[DEBUG] startPerformance called');
@@ -800,31 +1013,38 @@
             }
             
             try {
+                // 演奏開始データにノーツ設定を含める
+                const startData = {
+                    songId,
+                    bpm,
+                    notesSettings: masterControl ? masterControl.notesSettings : {
+                        noteSpeed: 250,
+                        lookAhead: 8,
+                        minNoteHeight: 60,
+                        maxNoteHeight: 200,
+                        noteHeightMultiplier: 120
+                    }
+                };
+                
                 const response = await fetch('/api/start', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ songId, bpm })
+                    body: JSON.stringify(startData)
                 });
                 
                 const result = await response.json();
                 console.log('[DEBUG] Start performance response:', result);
                 
                 if (result.success) {
-                    // 手動で演奏状態を設定
                     masterControl.updatePerformanceStatus('playing', result.song);
                     masterControl.log(`演奏開始: ${result.song.title}`);
-                    
-                    // 確認ログ
-                    setTimeout(() => {
-                        console.log('[DEBUG] After startPerformance:');
-                        console.log('  currentPerformance:', masterControl.currentPerformance);
-                        console.log('  systemStatus.isPlaying:', masterControl.systemStatus?.isPlaying);
-                    }, 100);
+                    masterControl.log(`ノーツ設定適用: 速度=${startData.notesSettings.noteSpeed}, 先読み=${startData.notesSettings.lookAhead}秒`);
                 } else {
                     alert('演奏の開始に失敗しました: ' + result.error);
                 }
             } catch (error) {
                 console.error('[DEBUG] Start performance error:', error);
+                alert('演奏の開始に失敗しました');
             }
         }
 
@@ -835,7 +1055,6 @@
                 
                 if (result.success) {
                     masterControl.log('演奏を停止しました');
-                    // UIの更新は WebSocket メッセージで行われる
                 } else {
                     masterControl.log('演奏停止エラー', 'error');
                 }
@@ -846,7 +1065,6 @@
         }
 
         function pausePerformance() {
-            // 一時停止機能（必要に応じて実装）
             masterControl.log('一時停止機能は未実装です', 'warning');
         }
 
@@ -881,8 +1099,9 @@
         function saveSettings() {
             const settings = {
                 syncDelay: document.getElementById('syncDelay').value,
-                lookAhead: document.getElementById('lookAhead').value,
-                latencyThreshold: document.getElementById('latencyThreshold').value
+                latencyThreshold: document.getElementById('latencyThreshold').value,
+                frameRate: document.getElementById('frameRate').value,
+                notesSettings: masterControl ? masterControl.notesSettings : {}
             };
             
             localStorage.setItem('pianoSyncSettings', JSON.stringify(settings));
@@ -894,16 +1113,54 @@
             if (settings) {
                 const parsed = JSON.parse(settings);
                 document.getElementById('syncDelay').value = parsed.syncDelay || 100;
-                document.getElementById('lookAhead').value = parsed.lookAhead || 5;
                 document.getElementById('latencyThreshold').value = parsed.latencyThreshold || 50;
+                document.getElementById('frameRate').value = parsed.frameRate || 60;
+                
+                // ノーツ設定の読み込み
+                if (parsed.notesSettings && masterControl) {
+                    Object.assign(masterControl.notesSettings, parsed.notesSettings);
+                    
+                    // UIスライダーの更新
+                    const sliders = [
+                        { id: 'noteSpeedSlider', valueId: 'noteSpeedValue', key: 'noteSpeed' },
+                        { id: 'lookAheadSlider', valueId: 'lookAheadValue', key: 'lookAhead' },
+                        { id: 'minNoteHeightSlider', valueId: 'minNoteHeightValue', key: 'minNoteHeight' },
+                        { id: 'maxNoteHeightSlider', valueId: 'maxNoteHeightValue', key: 'maxNoteHeight' }
+                    ];
+
+                    sliders.forEach(slider => {
+                        const element = document.getElementById(slider.id);
+                        const valueElement = document.getElementById(slider.valueId);
+                        if (element && valueElement) {
+                            element.value = masterControl.notesSettings[slider.key];
+                            valueElement.textContent = masterControl.notesSettings[slider.key];
+                        }
+                    });
+                }
+                
                 alert('設定を読み込みました');
             }
         }
 
         function resetSettings() {
             document.getElementById('syncDelay').value = 100;
-            document.getElementById('lookAhead').value = 5;
             document.getElementById('latencyThreshold').value = 50;
+            document.getElementById('frameRate').value = 60;
+            
+            // ノーツ設定のリセット
+            if (masterControl) {
+                masterControl.notesSettings = {
+                    noteSpeed: 250,
+                    lookAhead: 8,
+                    minNoteHeight: 60,
+                    maxNoteHeight: 200,
+                    noteHeightMultiplier: 120
+                };
+                
+                // UIの更新
+                masterControl.initializeNotesSettingsUI();
+            }
+            
             alert('デフォルト設定に戻しました');
         }
     </script>

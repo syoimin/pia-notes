@@ -7,8 +7,7 @@ class PianoClient {
     constructor(clientType, options = {}) {
         this.clientType = clientType; // 'melody' or 'accompaniment'
         this.options = {
-            noteSpeed: options.noteSpeed || 250, // 大幅に高速化: pixels per second (120→250)
-            lookAhead: options.lookAhead || 8, // 先読み時間を延長 (5→8秒)
+            lookAhead: options.lookAhead || 2, // 先読み時間を延長 (5→8秒)
             fallbackColor: clientType === 'melody' ? '#2196F3' : '#4CAF50',
             minNoteHeight: options.minNoteHeight || 60, // 最小ノート高さ
             maxNoteHeight: options.maxNoteHeight || 200, // 最大ノート高さ
