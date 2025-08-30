@@ -108,7 +108,6 @@ class PianoSyncCore {
             };
 
             this.ws.onmessage = (event) => {
-                console.log('[DEBUG] WebSocket message received:', event.data);
                 try {
                     const data = JSON.parse(event.data);
                     this.handleServerMessage(data);

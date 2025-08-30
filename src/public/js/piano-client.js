@@ -207,29 +207,10 @@ class PianoClient {
         
         // 背景色を変更して演奏中を示す
         document.body.style.background = `linear-gradient(135deg, ${this.options.fallbackColor}22, #1a1a1a)`;
-        
-        // クライアント側での自動停止タイマー（サーバーのバックアップ）
-        if (this.autoStopTimer) {
-            clearTimeout(this.autoStopTimer);
-        }
-        
-        const stopDelay = (data.song.duration * 1000) + 2000; // 楽曲時間 + 2秒のバッファ
-        this.autoStopTimer = setTimeout(() => {
-            console.log(`🕐 Client-side auto-stop after ${data.song.duration}s`);
-            this.stopPerformance();
-        }, stopDelay);
-        
-        console.log(`⏰ Auto-stop scheduled in ${stopDelay / 1000}s`);
     }
 
     stopPerformance() {
         console.log(`🛑 Stopping ${this.clientType} performance`);
-        
-        // 自動停止タイマーをクリア
-        if (this.autoStopTimer) {
-            clearTimeout(this.autoStopTimer);
-            this.autoStopTimer = null;
-        }
         
         this.currentSong = null;
         this.stopAnimation();
