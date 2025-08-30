@@ -42,6 +42,11 @@ class PianoSyncServer {
             bpm: 120
         };
 
+        // 無音検知用の独立変数
+        this.lastNoteTime = null;
+        this.silenceTimeout = null;
+        this.maxSilenceDuration = 10000; // 10秒
+
         this.initialize();
     }
 
@@ -298,12 +303,28 @@ class PianoSyncServer {
                     this.currentSession.playedNotes++;
                     console.log(`Notes played: ${this.currentSession.playedNotes}/${this.currentSession.totalNotes}`);
                     
+                    // 最後のノート演奏時刻を更新
+                    this.lastNoteTime = Date.now();
+                    
+                    // 既存の無音タイマーをリセット
+                    if (this.silenceTimeout) {
+                        clearTimeout(this.silenceTimeout);
+                    }
+
                     // 全ノート演奏完了で終了
                     if (this.currentSession.playedNotes >= this.currentSession.totalNotes) {
                         setTimeout(() => {
                             this.stopPerformance();
                         }, 1000); // 1秒の余韻
+                        return; // ここでreturnして無音タイマー設定をスキップ
                     }
+                    
+                    // 新しい無音タイマーを設定
+                    this.silenceTimeout = setTimeout(() => {
+                        console.log('10秒間の無音を検知 - 演奏を自動停止');
+                        this.stopPerformance();
+                    }, this.maxSilenceDuration);
+
                 }
                 break;
 
@@ -361,6 +382,13 @@ class PianoSyncServer {
 
         // 現在時刻を使用（Date.nowではなくperformance.nowベース）
         const startTime = Date.now();
+
+        // 無音検知の初期化
+        this.lastNoteTime = Date.now();
+        if (this.silenceTimeout) {
+            clearTimeout(this.silenceTimeout);
+            this.silenceTimeout = null;
+        }
 
         this.currentSession = {
             songId: song.id,
