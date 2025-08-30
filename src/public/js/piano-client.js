@@ -377,8 +377,27 @@ class PianoClient {
             // 新しいノーツで、表示範囲内の場合
             if (timeUntilNote > 0 && timeUntilNote <= this.options.lookAhead && !this.activeNotes.has(noteId)) {
                 // console.log(`➕ Adding new note: ${noteData.note} at ${noteData.time}s (${timeUntilNote.toFixed(2)}s until)`);
-                this.createNoteElement(noteData, timeUntilNote, index);
-                addedCount++;
+                
+                // 連打対策：同じ音程の既存のノーツとの間隔をチェック
+                const existingNotesForSameNote = Array.from(this.activeNotes.entries())
+                    .filter(([id, element]) => id.startsWith(`${noteData.note}_`));
+                
+                let shouldCreateNote = true;
+                existingNotesForSameNote.forEach(([existingId, existingElement]) => {
+                    const existingTime = parseFloat(existingId.split('_')[1]);
+                    const timeDifference = Math.abs(noteData.time - existingTime);
+                    
+                    // 0.2秒以内の連続ノーツの場合は既存のノーツを削除
+                    if (timeDifference < 0.2 && existingTime < noteData.time) {
+                        existingElement.remove();
+                        this.activeNotes.delete(existingId);
+                    }
+                });
+                
+                if (shouldCreateNote) {
+                    this.createNoteElement(noteData, timeUntilNote, index);
+                    addedCount++;
+                }
             }
         });
         
@@ -431,7 +450,7 @@ class PianoClient {
         const containerRect = this.container.getBoundingClientRect();
         const keyboardTopRelative = keyboardGuideRect.top - containerRect.top;
         
-        // ノーツの下部が鍵盤の上部に到達するように位置を調整
+        // ノーツの高さを固定値に設定（連打対応）
         const noteHeight = this.NOTE_HEIGHT[this.clientType];
         const targetPosition = keyboardTopRelative - noteHeight;
         const topPosition = Math.max(-noteHeight, progress * (targetPosition + noteHeight) - noteHeight);
@@ -439,7 +458,7 @@ class PianoClient {
         
         console.log(`📍 Creating note ${noteData.note}: progress=${progress.toFixed(2)}, top=${topPosition}px, left=${leftPosition}px, target=${targetPosition}px`);
         
-        // スタイル設定
+        // スタイル設定（高さを固定）
         const noteWidth = this.NOTE_WIDTH[this.clientType];
         note.style.cssText = `
             position: absolute;
