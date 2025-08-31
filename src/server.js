@@ -349,6 +349,10 @@ class PianoSyncServer {
                     }));
                 }
                 break;
+
+            case 'skip_notes':
+                this.handleSkipNotes(clientId, data);
+                break;
         }
     }
 
@@ -367,6 +371,111 @@ class PianoSyncServer {
                 this.changeTempo(data.bpm);
                 break;
         }
+    }
+
+    // handleSkipNotes メソッドを追加
+    handleSkipNotes(clientId, data) {
+        if (!this.currentSession) {
+            console.log('No active session for note skip operation');
+            return;
+        }
+        
+        const song = this.songs.find(s => s.id === this.currentSession.songId);
+        if (!song) {
+            console.log('Song not found for note skip');
+            return;
+        }
+        
+        const direction = data.direction;
+        const noteCount = parseInt(data.noteCount) || 10;
+        
+        // 現在の楽曲時間を取得（サーバー側で計算）
+        const currentServerTime = Date.now();
+        const currentElapsedTime = (currentServerTime - this.currentSession.startTime) / 1000;
+        
+        console.log(`[DEBUG] Current elapsed time: ${currentElapsedTime.toFixed(3)}s`);
+        
+        // 全ノーツを時間順にソート
+        const allNotes = [];
+        if (song.melody) {
+            song.melody.forEach((note, index) => {
+                allNotes.push({
+                    ...note,
+                    type: 'melody',
+                    originalIndex: index
+                });
+            });
+        }
+        if (song.accompaniment) {
+            song.accompaniment.forEach((note, index) => {
+                allNotes.push({
+                    ...note,
+                    type: 'accompaniment',
+                    originalIndex: index
+                });
+            });
+        }
+        
+        allNotes.sort((a, b) => a.time - b.time);
+        
+        // 現在位置に最も近いノートのインデックスを見つける
+        let currentNoteIndex = 0;
+        for (let i = 0; i < allNotes.length; i++) {
+            if (allNotes[i].time <= currentElapsedTime) {
+                currentNoteIndex = i;
+            } else {
+                break;
+            }
+        }
+        
+        // 目標ノートインデックスを計算
+        let targetNoteIndex;
+        if (direction === 'forward') {
+            targetNoteIndex = Math.min(currentNoteIndex + noteCount, allNotes.length - 1);
+        } else { // backward
+            targetNoteIndex = Math.max(currentNoteIndex - noteCount, 0);
+        }
+        
+        // 目標時間を取得
+        const targetTime = allNotes[targetNoteIndex] ? allNotes[targetNoteIndex].time : 0;
+        
+        console.log(`[DEBUG] Skip from note ${currentNoteIndex} (${currentElapsedTime.toFixed(3)}s) to note ${targetNoteIndex} (${targetTime.toFixed(3)}s)`);
+        
+        // *** 重要: 新しい開始時間を正しく計算 ***
+        const newStartTime = currentServerTime - (targetTime * 1000);
+        
+        console.log(`[DEBUG] New start time calculation:`);
+        console.log(`  - Current server time: ${currentServerTime}`);
+        console.log(`  - Target time: ${targetTime.toFixed(3)}s`);
+        console.log(`  - New start time: ${newStartTime}`);
+        console.log(`  - Verification (should equal targetTime): ${(currentServerTime - newStartTime) / 1000}`);
+        
+        // セッション開始時間を更新
+        this.currentSession.startTime = newStartTime;
+        
+        // 演奏済みノートカウンターを調整
+        this.currentSession.playedNotes = Math.max(0, targetNoteIndex);
+        
+        // 無音検知タイマーをリセット
+        this.lastNoteTime = Date.now();
+        if (this.silenceTimeout) {
+            clearTimeout(this.silenceTimeout);
+            this.silenceTimeout = null;
+        }
+        
+        // 全クライアントにスキップ通知
+        this.broadcastToAll({
+            type: 'skip_notes_complete',
+            targetTime: targetTime,
+            targetNoteIndex: targetNoteIndex,
+            newStartTime: newStartTime, // 修正された値を送信
+            serverTime: currentServerTime,
+            song: song,
+            direction: direction,
+            noteCount: noteCount
+        });
+        
+        console.log(`✅ Note skip completed to note ${targetNoteIndex} at ${targetTime.toFixed(2)}s`);
     }
 
     startPerformance(songId = 'demo', bpm = 120, notesSettings = null) {

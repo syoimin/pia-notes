@@ -127,6 +127,39 @@ class PianoClient {
             this.stopPerformance();
         });
 
+        // piano-client.js の skipNotesComplete イベントハンドラーを修正
+        this.syncCore.on('skipNotesComplete', (data) => {
+            // ノーツをクリアして再描画
+            this.clearNotes();
+            this.playedNotes.clear(); // 重要: 演奏済みセットをクリア
+            
+            // 楽曲情報を更新
+            this.currentSong = data.song;
+            
+            // *** 重要: 演奏済みノーツセットを再構築 ***
+            if (data.song && data.targetNoteIndex > 0) {
+                const allNotes = [];
+                if (data.song.melody) {
+                    data.song.melody.forEach(note => allNotes.push({...note, type: 'melody'}));
+                }
+                if (data.song.accompaniment) {
+                    data.song.accompaniment.forEach(note => allNotes.push({...note, type: 'accompaniment'}));
+                }
+                allNotes.sort((a, b) => a.time - b.time);
+                
+                // 目標位置より前のノーツを演奏済みとしてマーク
+                for (let i = 0; i < data.targetNoteIndex && i < allNotes.length; i++) {
+                    const note = allNotes[i];
+                    const noteId = `${note.note}_${note.time}`;
+                    this.playedNotes.add(noteId);
+                }
+                
+                console.log(`[DEBUG] Rebuilt playedNotes set with ${this.playedNotes.size} notes`);
+            }
+            
+            console.log(`🎵 Client skipped ${data.direction} ${data.noteCount} notes to position: ${data.targetTime.toFixed(2)}s`);
+        });
+
         this.syncCore.on('tempoChange', (data) => {
             this.updateBPM(data.bpm);
         });

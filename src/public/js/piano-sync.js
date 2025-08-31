@@ -167,6 +167,10 @@ class PianoSyncCore {
                 this.handleSyncStop(data);
                 break;
 
+            case 'skip_notes_complete':
+                this.handleSkipNotesComplete(data);
+                break;
+
             case 'tempo_change':
                 this.handleTempoChange(data);
                 break;
@@ -233,6 +237,45 @@ class PianoSyncCore {
         this.lastTempoChangeTime = 0;
         
         this.emit('syncStop', data);
+    }
+
+    handleSkipNotesComplete(data) {
+        console.log('[DEBUG] Note skip completed:', data);
+        
+        const currentTime = performance.now();
+        
+        // *** 重要: startTimeをperformance.nowベースに変換 ***
+        // サーバーからのnewStartTimeはDate.nowベースなので、performance.nowベースに変換する必要がある
+        const serverTimeOffset = data.serverTime - currentTime; // サーバーとクライアントの時間差
+        const performanceBasedStartTime = data.newStartTime - serverTimeOffset;
+        
+        console.log('[DEBUG] Start time conversion:');
+        console.log(`  - Server newStartTime: ${data.newStartTime}`);
+        console.log(`  - Current performance.now: ${currentTime}`);
+        console.log(`  - Server time: ${data.serverTime}`);
+        console.log(`  - Time offset: ${serverTimeOffset}`);
+        console.log(`  - Performance-based start time: ${performanceBasedStartTime}`);
+        
+        // 開始時間を更新
+        this.startTime = performanceBasedStartTime;
+        
+        // テンポ変更履歴をクリア
+        this.tempoChanges = [];
+        this.baseMusicTime = data.targetTime;
+        this.lastTempoChangeTime = currentTime;
+        
+        // 検証: getMusicTime()が正しい値を返すかチェック
+        const verificationTime = this.getMusicTime();
+        console.log(`[DEBUG] Verification - getMusicTime should be ~${data.targetTime}: ${verificationTime.toFixed(3)}`);
+        
+        this.emit('skipNotesComplete', {
+            targetTime: data.targetTime,
+            targetNoteIndex: data.targetNoteIndex,
+            startTime: this.startTime,
+            song: data.song,
+            direction: data.direction,
+            noteCount: data.noteCount
+        });
     }
 
     handleTempoChange(data) {

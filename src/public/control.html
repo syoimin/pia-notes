@@ -390,6 +390,20 @@
                     </div>
                 </div>
 
+                <!-- ノーツ操作ボタン -->
+                <div class="btn-group" style="margin-top: 15px;">
+                    <button class="btn btn-secondary" id="backwardBtn" onclick="skipBackward()" disabled>
+                        ⏪ 10ノーツ戻る
+                    </button>
+                    <button class="btn btn-secondary" id="forwardBtn" onclick="skipForward()" disabled>
+                        ⏩ 10ノーツ進む
+                    </button>
+                </div>
+
+                <div style="margin-top: 10px; font-size: 14px; color: var(--text-secondary);">
+                    演奏済みノート: <span id="noteProgress">0/0</span>
+                </div>
+
                 <!-- ノーツ設定セクション（新規追加） -->
                 <div class="notes-settings">
                     <h3>🎵 ノーツ表示設定</h3>
@@ -966,6 +980,8 @@
                     if (song && currentSongTitle) {
                         currentSongTitle.textContent = song.title || '不明な楽曲';
                     }
+
+                    updateSkipButtons(true);
                 } else {
                     if (indicator) {
                         indicator.className = 'performance-indicator stopped';
@@ -982,6 +998,7 @@
                     this.systemStatus.isPlaying = false;
                     
                     if (currentSongTitle) currentSongTitle.textContent = '未選択';
+                    updateSkipButtons(false);
                 }
             }
         }
@@ -1163,6 +1180,48 @@
             
             alert('デフォルト設定に戻しました');
         }
+
+        function skipForward() {
+            if (!masterControl || !masterControl.syncCore || !masterControl.syncCore.isPlaying) {
+                return;
+            }
+            
+            // サーバーに10ノート進む要求を送信
+            masterControl.syncCore.send({
+                type: 'skip_notes',
+                direction: 'forward',
+                noteCount: 10,
+                timestamp: Date.now()
+            });
+            
+            masterControl.log('10ノート早送りしました');
+        }
+
+        function skipBackward() {
+            if (!masterControl || !masterControl.syncCore || !masterControl.syncCore.isPlaying) {
+                return;
+            }
+            
+            // サーバーに10ノート戻る要求を送信
+            masterControl.syncCore.send({
+                type: 'skip_notes',
+                direction: 'backward',
+                noteCount: 10,
+                timestamp: Date.now()
+            });
+            
+            masterControl.log('10ノート巻き戻しました');
+        }
+
+        // 演奏状態に応じてボタンの有効/無効を切り替え
+        function updateSkipButtons(isPlaying) {
+            const backwardBtn = document.getElementById('backwardBtn');
+            const forwardBtn = document.getElementById('forwardBtn');
+            
+            if (backwardBtn) backwardBtn.disabled = !isPlaying;
+            if (forwardBtn) forwardBtn.disabled = !isPlaying;
+        }
+
     </script>
 </body>
 </html>
