@@ -467,7 +467,13 @@ class PianoSyncServer {
         
         // 演奏済みノートカウンターを調整
         // this.currentSession.playedNotes = Math.max(0, targetNoteIndex);
+ 
+        // 目標位置までのノート数をそのまま設定（複数クライアントの割り算は考慮しない）
+        const newPlayedNotes = Math.max(0, targetNoteIndex);
+        this.currentSession.playedNotes = newPlayedNotes;
         
+        console.log(`Adjusted played notes: ${this.currentSession.playedNotes}/${this.currentSession.totalNotes}`);
+                
         // 無音検知タイマーをリセット
         this.lastNoteTime = Date.now();
         if (this.silenceTimeout) {
