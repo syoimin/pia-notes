@@ -224,6 +224,7 @@ class PianoClient {
         this.currentSong = null;
         this.stopAnimation();
         this.clearNotes();
+        this.playedNotes.clear();
         
         // 背景色をリセット
         document.body.style.background = '#1a1a1a';
@@ -619,6 +620,7 @@ class PianoClient {
             this.notesContainer.innerHTML = '';
         }
         this.activeNotes.clear();
+        this.playedNotes.clear();
     }
 
     updateConnectionStatus(status, message) {
