@@ -1081,8 +1081,53 @@
             }
         }
 
+        // 元のBPMを保存する変数
+        let savedBpm = 120;
+        let isPaused = false;
+
         function pausePerformance() {
-            masterControl.log('一時停止機能は未実装です', 'warning');
+            if (!masterControl || !masterControl.syncCore || !masterControl.syncCore.isPlaying) {
+                return;
+            }
+            
+            if (!isPaused) {
+                // 一時停止処理
+                savedBpm = masterControl.syncCore.currentBpm;
+                
+                masterControl.syncCore.send({
+                    type: 'control',
+                    action: 'tempo',
+                    bpm: 0,
+                    timestamp: Date.now()
+                });
+                
+                isPaused = true;
+                masterControl.log('演奏を一時停止しました');
+                
+                // ボタンのテキストを変更
+                const pauseBtn = document.getElementById('pauseBtn');
+                if (pauseBtn) {
+                    pauseBtn.textContent = '▶️ 再開';
+                }
+                
+            } else {
+                // 再開処理
+                masterControl.syncCore.send({
+                    type: 'control',
+                    action: 'tempo',
+                    bpm: savedBpm,
+                    timestamp: Date.now()
+                });
+                
+                isPaused = false;
+                masterControl.log(`演奏を再開しました (BPM=${savedBpm})`);
+                
+                // ボタンのテキストを戻す
+                const pauseBtn = document.getElementById('pauseBtn');
+                if (pauseBtn) {
+                    pauseBtn.textContent = '⏸️ 一時停止';
+                }
+            }
         }
 
         function emergencyStop() {
