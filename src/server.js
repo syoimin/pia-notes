@@ -454,7 +454,7 @@ class PianoSyncServer {
         this.currentSession.startTime = newStartTime;
         
         // 演奏済みノートカウンターを調整
-        this.currentSession.playedNotes = Math.max(0, targetNoteIndex);
+        // this.currentSession.playedNotes = Math.max(0, targetNoteIndex);
         
         // 無音検知タイマーをリセット
         this.lastNoteTime = Date.now();

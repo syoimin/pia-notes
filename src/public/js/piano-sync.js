@@ -244,29 +244,46 @@ class PianoSyncCore {
         
         const currentTime = performance.now();
         
-        // *** 重要: startTimeをperformance.nowベースに変換 ***
-        // サーバーからのnewStartTimeはDate.nowベースなので、performance.nowベースに変換する必要がある
-        const serverTimeOffset = data.serverTime - currentTime; // サーバーとクライアントの時間差
+        // サーバーとクライアントの時間差を計算
+        const serverTimeOffset = data.serverTime - currentTime;
         const performanceBasedStartTime = data.newStartTime - serverTimeOffset;
         
         console.log('[DEBUG] Start time conversion:');
         console.log(`  - Server newStartTime: ${data.newStartTime}`);
-        console.log(`  - Current performance.now: ${currentTime}`);
-        console.log(`  - Server time: ${data.serverTime}`);
-        console.log(`  - Time offset: ${serverTimeOffset}`);
         console.log(`  - Performance-based start time: ${performanceBasedStartTime}`);
         
         // 開始時間を更新
         this.startTime = performanceBasedStartTime;
         
-        // テンポ変更履歴をクリア
+        // *** 重要: テンポ変更履歴をクリアせず、現在のBPMを保持 ***
+        // テンポ変更履歴はクリアするが、現在のBPMは保持する
+        const currentBpm = this.currentBpm; // 現在のBPMを保存
+        
         this.tempoChanges = [];
         this.baseMusicTime = data.targetTime;
         this.lastTempoChangeTime = currentTime;
         
+        // 現在のBPMが元のBPMと異なる場合、テンポ変更として記録
+        if (currentBpm !== this.originalBpm) {
+            console.log(`[DEBUG] Preserving tempo change: ${this.originalBpm} -> ${currentBpm} BPM`);
+            
+            // スキップ後の位置でのテンポ変更として記録
+            this.tempoChanges.push({
+                time: currentTime,
+                oldBpm: this.originalBpm,
+                newBpm: currentBpm,
+                musicTimeAtChange: data.targetTime
+            });
+            
+            this.currentBpm = currentBpm; // BPMを保持
+            this.baseMusicTime = data.targetTime;
+            this.lastTempoChangeTime = currentTime;
+        }
+        
         // 検証: getMusicTime()が正しい値を返すかチェック
         const verificationTime = this.getMusicTime();
         console.log(`[DEBUG] Verification - getMusicTime should be ~${data.targetTime}: ${verificationTime.toFixed(3)}`);
+        console.log(`[DEBUG] Current BPM preserved: ${this.currentBpm}`);
         
         this.emit('skipNotesComplete', {
             targetTime: data.targetTime,
@@ -276,7 +293,7 @@ class PianoSyncCore {
             direction: data.direction,
             noteCount: data.noteCount
         });
-    }
+}
 
     handleTempoChange(data) {
         console.log('🎶 [DEBUG] Tempo change received:', data);
