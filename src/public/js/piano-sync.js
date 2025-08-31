@@ -294,7 +294,7 @@ class PianoSyncCore {
             noteCount: data.noteCount
         });
 }
-
+ 
     handleTempoChange(data) {
         console.log('🎶 [DEBUG] Tempo change received:', data);
         
@@ -328,7 +328,12 @@ class PianoSyncCore {
         console.log('  - Updated base music time:', this.baseMusicTime.toFixed(3));
         console.log('  - Updated last tempo change time:', this.lastTempoChangeTime);
         console.log('  - Tempo changes count:', this.tempoChanges.length);
-        
+
+        // BPM=0の場合は現在の音楽時間で停止
+        if (data.bmp === 0) {
+            console.log('🎶 [DEBUG] BPM=0: Pausing at music time:', oldMusicTime.toFixed(3));
+        }
+
         // 即座にgetMusicTimeをテスト
         setTimeout(() => {
             const newMusicTime = this.getMusicTime();
@@ -349,15 +354,21 @@ class PianoSyncCore {
         }
         
         const currentTime = this.getCurrentTime();
+
+        // BPMが0の場合は時間を停止
+        if (this.currentBpm === 0) {
+            console.log('🎵 [DEBUG] getMusicTime: BPM=0, returning baseMusicTime:', this.baseMusicTime);
+            return Math.max(0, this.baseMusicTime || 0);
+        }
         
         if (this.tempoChanges.length === 0) {
             // テンポ変更がない場合は単純計算
             const realTimeElapsed = (currentTime - this.startTime) / 1000;
             const musicTime = Math.max(0, realTimeElapsed);
             
-            console.log('🎵 [DEBUG] getMusicTime (no tempo changes):');
-            console.log('  - Real time elapsed:', realTimeElapsed.toFixed(3));
-            console.log('  - Music time:', musicTime.toFixed(3));
+            // console.log('🎵 [DEBUG] getMusicTime (no tempo changes):');
+            // console.log('  - Real time elapsed:', realTimeElapsed.toFixed(3));
+            // console.log('  - Music time:', musicTime.toFixed(3));
             
             return musicTime;
         }

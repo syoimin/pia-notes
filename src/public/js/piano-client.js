@@ -317,6 +317,11 @@ class PianoClient {
     updateExistingNotes(currentTime) {
         const containerHeight = this.container.clientHeight;
         
+        // BPMが0の場合は位置更新をスキップ
+        if (this.syncCore.currentBpm === 0) {
+            return;
+        }
+
         this.activeNotes.forEach((noteElement, noteId) => {
             const parts = noteId.split('_');
             const noteTime = parseFloat(parts[1]);

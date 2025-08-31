@@ -401,12 +401,6 @@ class PianoSyncServer {
         const direction = data.direction;
         const noteCount = parseInt(data.noteCount) || 10;
         
-        // 現在の楽曲時間を取得（サーバー側で計算）
-        const currentServerTime = Date.now();
-        const currentElapsedTime = (currentServerTime - this.currentSession.startTime) / 1000;
-        
-        console.log(`[DEBUG] Current elapsed time: ${currentElapsedTime.toFixed(3)}s`);
-        
         // 全ノーツを時間順にソート
         const allNotes = [];
         if (song.melody) {
@@ -430,50 +424,45 @@ class PianoSyncServer {
         
         allNotes.sort((a, b) => a.time - b.time);
         
-        // 現在位置に最も近いノートのインデックスを見つける
-        let currentNoteIndex = 0;
-        for (let i = 0; i < allNotes.length; i++) {
-            if (allNotes[i].time <= currentElapsedTime) {
-                currentNoteIndex = i;
-            } else {
-                break;
-            }
-        }
+        // *** 修正: 時間ベースではなく演奏済みノート数ベースで計算 ***
+        const currentPlayedNotes = Math.floor(this.currentSession.playedNotes);
+        let currentNoteIndex = Math.max(0, currentPlayedNotes - 1); // 最後に演奏されたノートのインデックス
+        
+        console.log(`[DEBUG] Using played notes count: ${currentPlayedNotes}, current note index: ${currentNoteIndex}`);
         
         // 目標ノートインデックスを計算
         let targetNoteIndex;
         if (direction === 'forward') {
             targetNoteIndex = Math.min(currentNoteIndex + noteCount, allNotes.length - 1);
-        } else { // backward
+        } else {
             targetNoteIndex = Math.max(currentNoteIndex - noteCount, 0);
         }
         
-        // 目標時間を取得
         const targetTime = allNotes[targetNoteIndex] ? allNotes[targetNoteIndex].time : 0;
         
-        console.log(`[DEBUG] Skip from note ${currentNoteIndex} (${currentElapsedTime.toFixed(3)}s) to note ${targetNoteIndex} (${targetTime.toFixed(3)}s)`);
+        console.log(`[DEBUG] Skip from played note ${currentPlayedNotes} (index ${currentNoteIndex}) to index ${targetNoteIndex} (${targetTime.toFixed(3)}s)`);
         
-        // *** 重要: 新しい開始時間を正しく計算 ***
-        const newStartTime = currentServerTime - (targetTime * 1000);
+        const currentServerTime = Date.now();
+        let newStartTime;
         
-        console.log(`[DEBUG] New start time calculation:`);
-        console.log(`  - Current server time: ${currentServerTime}`);
-        console.log(`  - Target time: ${targetTime.toFixed(3)}s`);
-        console.log(`  - New start time: ${newStartTime}`);
-        console.log(`  - Verification (should equal targetTime): ${(currentServerTime - newStartTime) / 1000}`);
+        if (this.currentSession.isPaused || this.currentSession.bpm === 0) {
+            // 一時停止中のスキップ - pausedAtを更新するか、新しい基準時間を設定
+            if (this.currentSession.pausedAt !== undefined) {
+                this.currentSession.pausedAt = targetTime;
+            }
+            newStartTime = currentServerTime - (targetTime * 1000);
+            this.currentSession.startTime = newStartTime;
+        } else {
+            // 通常のスキップ
+            newStartTime = currentServerTime - (targetTime * 1000);
+            this.currentSession.startTime = newStartTime;
+        }
         
-        // セッション開始時間を更新
-        this.currentSession.startTime = newStartTime;
+        // 演奏済みノート数を目標インデックスに設定
+        this.currentSession.playedNotes = Math.max(0, targetNoteIndex);
         
-        // 演奏済みノートカウンターを調整
-        // this.currentSession.playedNotes = Math.max(0, targetNoteIndex);
- 
-        // 目標位置までのノート数をそのまま設定（複数クライアントの割り算は考慮しない）
-        const newPlayedNotes = Math.max(0, targetNoteIndex);
-        this.currentSession.playedNotes = newPlayedNotes;
+        console.log(`[DEBUG] Adjusted played notes: ${this.currentSession.playedNotes}/${this.currentSession.totalNotes}`);
         
-        console.log(`Adjusted played notes: ${this.currentSession.playedNotes}/${this.currentSession.totalNotes}`);
-                
         // 無音検知タイマーをリセット
         this.lastNoteTime = Date.now();
         if (this.silenceTimeout) {
@@ -486,11 +475,13 @@ class PianoSyncServer {
             type: 'skip_notes_complete',
             targetTime: targetTime,
             targetNoteIndex: targetNoteIndex,
-            newStartTime: newStartTime, // 修正された値を送信
+            newStartTime: newStartTime,
             serverTime: currentServerTime,
             song: song,
             direction: direction,
-            noteCount: noteCount
+            noteCount: noteCount,
+            currentBpm: this.currentSession.bpm,
+            isPaused: this.currentSession.isPaused
         });
         
         console.log(`✅ Note skip completed to note ${targetNoteIndex} at ${targetTime.toFixed(2)}s`);
