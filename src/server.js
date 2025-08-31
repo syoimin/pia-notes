@@ -329,13 +329,14 @@ class PianoSyncServer {
                         }, 5000);
                         return;
                     }
-                    
-                    // 新しい無音タイマーを設定
+
                     this.silenceTimeout = setTimeout(() => {
-                        console.log('10秒間の無音を検知 - 演奏を自動停止');
-                        this.stopPerformance();
+                        if (this.currentSession.bpm > 0) {
+                            console.log('10秒間の無音を検知 - 演奏を自動停止');
+                            this.stopPerformance();
+                        }
                     }, this.maxSilenceDuration);
-                    
+                        
                 }
                 break;
 
