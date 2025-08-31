@@ -541,7 +541,7 @@ class PianoClient {
         this.notesContainer.appendChild(note);
         this.activeNotes.set(note.dataset.noteId, note);
         
-        console.log(`✅ Created vertical note ${noteData.note}: height=${calculatedHeight}px, duration=${duration}s`);
+        // console.log(`✅ Created vertical note ${noteData.note}: height=${calculatedHeight}px, duration=${duration}s`);
     }
 
     isWhiteKey(noteName) {

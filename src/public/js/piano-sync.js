@@ -337,7 +337,7 @@ class PianoSyncCore {
         // 即座にgetMusicTimeをテスト
         setTimeout(() => {
             const newMusicTime = this.getMusicTime();
-            console.log('🎶 [DEBUG] Music time 100ms after tempo change:', newMusicTime.toFixed(3));
+            // console.log('🎶 [DEBUG] Music time 100ms after tempo change:', newMusicTime.toFixed(3));
         }, 100);
         
         this.emit('tempoChange', {
@@ -349,7 +349,7 @@ class PianoSyncCore {
 
     getMusicTime() {
         if (!this.isPlaying || !this.startTime) {
-            console.log('🎵 [DEBUG] getMusicTime: Not playing');
+            // console.log('🎵 [DEBUG] getMusicTime: Not playing');
             return 0;
         }
         
@@ -357,7 +357,7 @@ class PianoSyncCore {
 
         // BPMが0の場合は時間を停止
         if (this.currentBpm === 0) {
-            console.log('🎵 [DEBUG] getMusicTime: BPM=0, returning baseMusicTime:', this.baseMusicTime);
+            // console.log('🎵 [DEBUG] getMusicTime: BPM=0, returning baseMusicTime:', this.baseMusicTime);
             return Math.max(0, this.baseMusicTime || 0);
         }
         
@@ -381,19 +381,6 @@ class PianoSyncCore {
         const musicTimeElapsed = timeSinceLastChange * tempoRatio;
         
         const totalMusicTime = this.baseMusicTime + musicTimeElapsed;
-        
-        // 詳細デバッグログ
-        console.log('🎵 [DEBUG] getMusicTime (with tempo changes):');
-        console.log('  - Current time:', currentTime.toFixed(3));
-        console.log('  - Last tempo change time:', this.lastTempoChangeTime.toFixed(3));
-        console.log('  - Time since last change:', timeSinceLastChange.toFixed(3));
-        console.log('  - Original BPM:', this.originalBpm);
-        console.log('  - Current BPM:', this.currentBpm);
-        console.log('  - Tempo ratio:', tempoRatio.toFixed(3));
-        console.log('  - Music time elapsed since change:', musicTimeElapsed.toFixed(3));
-        console.log('  - Base music time:', this.baseMusicTime.toFixed(3));
-        console.log('  - Total music time:', totalMusicTime.toFixed(3));
-        console.log('  - Tempo changes count:', this.tempoChanges.length);
         
         return Math.max(0, totalMusicTime);
     }
