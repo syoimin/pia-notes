@@ -300,8 +300,19 @@ class PianoSyncServer {
 
             case 'note_played':
                 if (this.currentSession) {
-                    this.currentSession.playedNotes++;
-                    console.log(`Notes played: ${this.currentSession.playedNotes}/${this.currentSession.totalNotes}`);
+                    const noteId = data.noteId;
+                    const clientType = data.clientType;
+                    
+                    // 該当するクライアントタイプの数を取得
+                    const clientsOfType = Array.from(this.connectedClients.values())
+                        .filter(client => client.type === clientType).length;
+                    
+                    // クライアント数で割った分だけカウント（小数点以下切り上げ）
+                    const incrementValue = clientsOfType > 0 ? (1 / clientsOfType) : 1;
+                    
+                    this.currentSession.playedNotes += incrementValue;
+                    
+                    console.log(`Note played: ${noteId} (+${incrementValue.toFixed(2)}) = ${this.currentSession.playedNotes.toFixed(1)}/${this.currentSession.totalNotes}`);
                     
                     // 最後のノート演奏時刻を更新
                     this.lastNoteTime = Date.now();
@@ -311,12 +322,12 @@ class PianoSyncServer {
                         clearTimeout(this.silenceTimeout);
                     }
 
-                    // 全ノート演奏完了で終了
-                    if (this.currentSession.playedNotes >= this.currentSession.totalNotes) {
+                    // 全ノート演奏完了で終了（小数点考慮）
+                    if (this.currentSession.playedNotes >= this.currentSession.totalNotes - 0.1) {
                         setTimeout(() => {
                             this.stopPerformance();
-                        }, 5000); // 5秒の余韻
-                        return; // ここでreturnして無音タイマー設定をスキップ
+                        }, 5000);
+                        return;
                     }
                     
                     // 新しい無音タイマーを設定
@@ -324,7 +335,7 @@ class PianoSyncServer {
                         console.log('10秒間の無音を検知 - 演奏を自動停止');
                         this.stopPerformance();
                     }, this.maxSilenceDuration);
-
+                    
                 }
                 break;
 
