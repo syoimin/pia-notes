@@ -315,7 +315,7 @@ class PianoSyncServer {
                     if (this.currentSession.playedNotes >= this.currentSession.totalNotes) {
                         setTimeout(() => {
                             this.stopPerformance();
-                        }, 1000); // 1秒の余韻
+                        }, 5000); // 5秒の余韻
                         return; // ここでreturnして無音タイマー設定をスキップ
                     }
                     
@@ -431,6 +431,13 @@ class PianoSyncServer {
             type: 'sync_stop',
             serverTime: Date.now()
         });
+
+        // 無音タイマーのクリア
+        if (this.silenceTimeout) {
+            clearTimeout(this.silenceTimeout);
+            this.silenceTimeout = null;
+        }
+        this.lastNoteTime = null; // この行を追加
 
         this.currentSession = null;
         this.systemStatus.isPlaying = false;
