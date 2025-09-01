@@ -401,11 +401,11 @@ class PianoClient {
             const noteId = `${noteData.note}_${noteData.time}`;
             
             // ヒットタイミングのチェック
-            if (Math.abs(timeUntilNote) < 0.1) {
+            if (Math.abs(timeUntilNote) < 0.01) {
                 this.highlightKey(noteData.note);
                 
                 // 自動演奏音を出す
-                if (Math.abs(timeUntilNote) < 0.05 && !this.playedNotes.has(noteId)) {
+                if (Math.abs(timeUntilNote) < 0.01 && !this.playedNotes.has(noteId)) {
                     // まだ演奏していないノートのみ処理
                     this.playedNotes.add(noteId);
                     this.playKeySound(noteData.note);
