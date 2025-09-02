@@ -1063,6 +1063,13 @@
                     masterControl.updatePerformanceStatus('playing', result.song);
                     masterControl.log(`演奏開始: ${result.song.title}`);
                     masterControl.log(`ノーツ設定適用: 速度=${startData.notesSettings.noteSpeed}, 先読み=${startData.notesSettings.lookAhead}秒, ヒットタイミング=${startData.hitTiming}ms`);
+                    
+                    // ★★★ 修正: 演奏開始後にBPMを強制的に設定 ★★★
+                    if (masterControl && masterControl.syncCore && masterControl.syncCore.isConnected) {
+                        console.log(`[DEBUG] Applying initial BPM: ${bpm}`);
+                        masterControl.syncCore.requestTempoChange(bpm);
+                        masterControl.log(`初期BPM設定: ${bpm}`);
+                    }
                 } else {
                     alert('演奏の開始に失敗しました: ' + result.error);
                 }

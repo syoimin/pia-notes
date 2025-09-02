@@ -188,7 +188,7 @@ class PianoSyncCore {
         console.log('Sync start received:', data);
         
         this.currentSong = data.song;
-        this.originalBpm = data.bpm;
+        this.originalBpm = data.song.bpm;
         this.currentBpm = data.bpm;
         
         // テンポ変更履歴をリセット
@@ -349,7 +349,6 @@ class PianoSyncCore {
 
     getMusicTime() {
         if (!this.isPlaying || !this.startTime) {
-            // console.log('🎵 [DEBUG] getMusicTime: Not playing');
             return 0;
         }
         
@@ -357,7 +356,6 @@ class PianoSyncCore {
 
         // BPMが0の場合は時間を停止
         if (this.currentBpm === 0) {
-            // console.log('🎵 [DEBUG] getMusicTime: BPM=0, returning baseMusicTime:', this.baseMusicTime);
             return Math.max(0, this.baseMusicTime || 0);
         }
         
