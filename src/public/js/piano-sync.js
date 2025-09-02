@@ -330,7 +330,7 @@ class PianoSyncCore {
         console.log('  - Tempo changes count:', this.tempoChanges.length);
 
         // BPM=0の場合は現在の音楽時間で停止
-        if (data.bmp === 0) {
+        if (data.bpm === 0) {
             console.log('🎶 [DEBUG] BPM=0: Pausing at music time:', oldMusicTime.toFixed(3));
         }
 
