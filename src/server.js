@@ -155,8 +155,8 @@ class PianoSyncServer {
 
         // 演奏開始
         this.app.post('/api/start', (req, res) => {
-            const { songId, bpm } = req.body;
-            const result = this.startPerformance(songId, bpm);
+            const { songId, bpm, hitTiming } = req.body;
+            const result = this.startPerformance(songId, bpm, hitTiming);
             res.json(result);
         });
 
@@ -487,7 +487,7 @@ class PianoSyncServer {
         console.log(`✅ Note skip completed to note ${targetNoteIndex} at ${targetTime.toFixed(2)}s`);
     }
 
-    startPerformance(songId = 'demo', bpm = 120, notesSettings = null) {
+    startPerformance(songId = 'demo', bpm = 120, hitTiming = 50, notesSettings = null) {
         const song = this.songs.find(s => s.id === songId) || this.songs[0];
     
         // 総ノート数を計算
@@ -514,6 +514,7 @@ class PianoSyncServer {
             totalNotes: totalNotes,
             playedNotes: 0, // 演奏済みカウンター
             bpm: bpm,
+            hitTiming: hitTiming,
             status: 'playing',
             duration: song.duration
         };

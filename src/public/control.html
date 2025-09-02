@@ -548,6 +548,12 @@
                     <label class="form-label">レイテンシー警告閾値 (ms)</label>
                     <input type="number" id="latencyThreshold" class="form-input" value="50" min="20" max="200">
                 </div>
+
+                <!-- ここに追加 -->
+                <div class="form-group">
+                    <label class="form-label">ヒットタイミング (ms)</label>
+                    <input type="number" id="hitTiming" class="form-input" value="50" min="10" max="200" step="10">
+                </div>
                 
                 <div class="form-group">
                     <label class="form-label">フレームレート制限</label>
@@ -1034,6 +1040,7 @@
                 const startData = {
                     songId,
                     bpm,
+                    hitTiming: hitTiming,   
                     notesSettings: masterControl ? masterControl.notesSettings : {
                         noteSpeed: 250,
                         lookAhead: 8,
@@ -1055,7 +1062,7 @@
                 if (result.success) {
                     masterControl.updatePerformanceStatus('playing', result.song);
                     masterControl.log(`演奏開始: ${result.song.title}`);
-                    masterControl.log(`ノーツ設定適用: 速度=${startData.notesSettings.noteSpeed}, 先読み=${startData.notesSettings.lookAhead}秒`);
+                    masterControl.log(`ノーツ設定適用: 速度=${startData.notesSettings.noteSpeed}, 先読み=${startData.notesSettings.lookAhead}秒, ヒットタイミング=${startData.hitTiming}ms`);
                 } else {
                     alert('演奏の開始に失敗しました: ' + result.error);
                 }

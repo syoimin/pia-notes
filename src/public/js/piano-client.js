@@ -120,6 +120,13 @@ class PianoClient {
         });
 
         this.syncCore.on('syncStart', (data) => {
+            // ヒットタイミング設定を適用
+            if (data.hitTiming !== undefined) {
+                this.hitTimingThreshold = data.hitTiming / 1000; // msを秒に変換
+                console.log(`Hit timing set to: ${data.hitTiming}ms (${this.hitTimingThreshold}s)`);
+            } else {
+                this.hitTimingThreshold = 0.05; // デフォルト50ms
+            }
             this.startPerformance(data);
         });
 
@@ -400,17 +407,16 @@ class PianoClient {
             const timeUntilNote = noteData.time - currentTime;
             const noteId = `${noteData.note}_${noteData.time}`;
             
-            // ヒットタイミングのチェック
-            if (Math.abs(timeUntilNote) < 0.01) {
+            // 設定されたヒットタイミングを使用
+            const threshold = this.hitTimingThreshold || 0.05;
+            
+            if (Math.abs(timeUntilNote) < threshold) {
                 this.highlightKey(noteData.note);
                 
-                // 自動演奏音を出す
-                if (Math.abs(timeUntilNote) < 0.01 && !this.playedNotes.has(noteId)) {
-                    // まだ演奏していないノートのみ処理
+                if (Math.abs(timeUntilNote) < threshold * 0.4 && !this.playedNotes.has(noteId)) {
                     this.playedNotes.add(noteId);
                     this.playKeySound(noteData.note);
                     
-                    // サーバーに1回だけ通知
                     this.syncCore.send({
                         type: 'note_played',
                         noteId: noteId,
