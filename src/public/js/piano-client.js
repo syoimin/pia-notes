@@ -356,17 +356,18 @@ class PianoClient {
                 const totalDistance = targetPosition - startPosition;
                 const newTop = startPosition + (progress * totalDistance);
                 
-                noteElement.style.top = `${newTop}px`;
+                // ★★★ 最適化: 初回は基準位置をtopで設定、以降はtransformで高速移動 ★★★
+                if (!noteElement.dataset.basePositionSet) {
+                    // 初回のみtopで基準位置を設定
+                    noteElement.style.top = `${startPosition}px`;
+                    noteElement.dataset.basePositionSet = 'true';
+                    noteElement.dataset.basePosition = startPosition;
+                }
                 
-                // ヒット直前の視覚効果
-                // const distanceToTarget = targetPosition - newTop;
-                // if (distanceToTarget < 30 && distanceToTarget > -10) {
-                //     noteElement.style.transform = 'scale(1.1)';
-                //     noteElement.style.boxShadow = '0 0 20px rgba(255, 152, 0, 0.8)';
-                // } else {
-                //     noteElement.style.transform = 'scale(1)';
-                //     noteElement.style.boxShadow = '0 4px 8px rgba(0,0,0,0.3)';
-                // }
+                // 基準位置からの移動量をtransformで高速処理
+                const basePosition = parseFloat(noteElement.dataset.basePosition);
+                const translateY = newTop - basePosition;
+                noteElement.style.transform = `translateY(${translateY}px)`;
                 
             } else if (timeUntilNote < -2) {
                 // 画面外に出たノーツを削除
@@ -434,8 +435,8 @@ class PianoClient {
         const note = document.createElement('div');
         const isWhite = this.isWhiteKey(noteData.note);
         
-        // ノーツの長さを音符の長さに基づいて計算
-        const duration = noteData.duration || 0.5; // デフォルト0.5秒
+        // 音符の長さを音符の長さに基づいて計算
+        const duration = noteData.duration || 0.5;
         const calculatedHeight = Math.max(
             this.options.minNoteHeight,
             Math.min(
@@ -446,7 +447,7 @@ class PianoClient {
         
         note.className = `note ${this.clientType} ${isWhite ? 'white-key-note' : 'black-key-note'}`;
         note.dataset.noteId = `${noteData.note}_${noteData.time}_${index}`;
-        note.dataset.noteHeight = calculatedHeight; // 高さをdata属性に保存
+        note.dataset.noteHeight = calculatedHeight;
         
         // 位置計算
         const progress = (this.options.lookAhead - timeUntilNote) / this.options.lookAhead;
@@ -462,11 +463,15 @@ class PianoClient {
         
         const leftPosition = this.calculateNotePosition(noteData);
         
+        // 基準位置を設定（初期化時）
+        note.dataset.basePositionSet = 'true';
+        note.dataset.basePosition = startPosition;
+        
         // 縦長ノーツのスタイル設定
-        const noteWidth = isWhite ? 36 : 22; // 白鍵/黒鍵に応じた幅
+        const noteWidth = isWhite ? 36 : 22;
         note.style.cssText = `
             position: absolute;
-            top: ${topPosition}px;
+            top: ${startPosition}px;
             left: ${leftPosition - (noteWidth / 2)}px;
             width: ${noteWidth}px;
             height: ${calculatedHeight}px;
@@ -487,6 +492,7 @@ class PianoClient {
             border: 2px solid rgba(255,255,255,0.4);
             padding-bottom: 4px;
             overflow: hidden;
+            transform: translateY(${topPosition - startPosition}px);
         `;
         
         // ノート名表示
@@ -524,30 +530,8 @@ class PianoClient {
             note.appendChild(fingerIndicator);
         }
         
-        // 音符の長さを視覚的に示すインジケーター
-        if (calculatedHeight > 80) {
-            const durationIndicator = document.createElement('div');
-            durationIndicator.style.cssText = `
-                position: absolute;
-                top: 25px;
-                left: 2px;
-                right: 2px;
-                height: ${calculatedHeight - 35}px;
-                background: linear-gradient(180deg, 
-                    rgba(255,255,255,0.2) 0%, 
-                    rgba(255,255,255,0.1) 50%, 
-                    rgba(255,255,255,0.05) 100%
-                );
-                border-radius: 2px;
-                border: 1px solid rgba(255,255,255,0.1);
-            `;
-            note.appendChild(durationIndicator);
-        }
-        
         this.notesContainer.appendChild(note);
         this.activeNotes.set(note.dataset.noteId, note);
-        
-        // console.log(`✅ Created vertical note ${noteData.note}: height=${calculatedHeight}px, duration=${duration}s`);
     }
 
     isWhiteKey(noteName) {
