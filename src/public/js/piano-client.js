@@ -334,7 +334,7 @@ class PianoClient {
             const noteTime = parseFloat(parts[1]);
             const timeUntilNote = noteTime - currentTime;
             
-            if (timeUntilNote > -2 && timeUntilNote <= this.options.lookAhead) {
+            if (timeUntilNote > -0.5 && timeUntilNote <= this.options.lookAhead) {
                 // 高速落下計算
                 const progress = (this.options.lookAhead - timeUntilNote) / this.options.lookAhead;
                 
@@ -369,7 +369,7 @@ class PianoClient {
                 const translateY = newTop - basePosition;
                 noteElement.style.transform = `translateY(${translateY}px)`;
                 
-            } else if (timeUntilNote < -2) {
+            } else if (timeUntilNote < -0.5) {
                 // 画面外に出たノーツを削除
                 noteElement.remove();
                 this.activeNotes.delete(noteId);

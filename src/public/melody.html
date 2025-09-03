@@ -36,7 +36,7 @@
             background: linear-gradient(135deg, #1976D2, #1a1a1a);
             color: var(--text-primary);
             overflow-x: auto; /* 横スクロールを許可 */
-            overflow-y: hidden; /* 縦スクロールは無効のまま */
+            /* overflow-y: hidden; */
             user-select: none;
             touch-action: manipulation;
             line-height: 1.6;
@@ -49,7 +49,7 @@
         .piano-display {
             position: relative;
             width: 100vw;
-            height: 100vh;
+            height: calc(100vh + 200px); /* 鍵盤の高さ分（約200px）を追加 */
             border-left: 6px solid var(--primary-color);
             min-width: 100vw; /* 最小幅を確保 */
         }
