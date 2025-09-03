@@ -674,7 +674,7 @@
             }
 
             setupEventHandlers() {
-                // 同期システムイベント
+                // 既存の同期システムイベント
                 this.syncCore.on('connected', () => {
                     this.isConnected = true;
                     this.log('サーバーに接続しました');
@@ -699,14 +699,13 @@
                     this.updatePerformanceStatus('stopped');
                 });
 
-                // テンポスライダー
+                // 既存のテンポスライダー
                 document.getElementById('tempoSlider').addEventListener('input', (e) => {
                     const value = parseInt(e.target.value);
                     console.log('[DEBUG] Tempo slider changed to:', value);
                     
                     document.getElementById('tempoValue').textContent = value;
                     
-                    // リアルタイムテンポ変更
                     if (masterControl.currentPerformance) {
                         console.log('[DEBUG] Performance is active, requesting tempo change');
                         masterControl.syncCore.requestTempoChange(value);
@@ -715,7 +714,7 @@
                     }
                 });
 
-                // 楽曲選択
+                // 既存の楽曲選択
                 document.getElementById('songSelect').addEventListener('change', (e) => {
                     const songId = e.target.value;
                     const song = this.songs.find(s => s.id === songId);
@@ -726,6 +725,118 @@
                         document.getElementById('tempoValue').textContent = song.bpm;
                     }
                 });
+
+                // ★★★ 追加: 左右矢印キーでのノーツスキップ ★★★
+                document.addEventListener('keydown', (e) => {
+                    // 演奏中のみ有効
+                    if (!this.currentPerformance || this.currentPerformance.status !== 'playing') {
+                        return;
+                    }
+
+                    // 入力フィールドにフォーカスがある場合は無効
+                    if (document.activeElement.tagName === 'INPUT' || 
+                        document.activeElement.tagName === 'SELECT' || 
+                        document.activeElement.tagName === 'TEXTAREA') {
+                        return;
+                    }
+
+                    switch(e.key) {
+                        case 'ArrowLeft':
+                            e.preventDefault();
+                            this.handleKeyboardSkip('backward');
+                            break;
+                        case 'ArrowRight':
+                            e.preventDefault();
+                            this.handleKeyboardSkip('forward');
+                            break;
+                    }
+                });
+            }
+
+            // ★★★ 追加: キーボードスキップ処理メソッド ★★★
+            handleKeyboardSkip(direction) {
+                if (!this.syncCore || !this.syncCore.isConnected) {
+                    this.log('サーバーに接続されていません', 'error');
+                    return;
+                }
+
+                // デバウンス処理（連続実行防止）
+                const now = Date.now();
+                if (this.lastKeyboardSkip && (now - this.lastKeyboardSkip) < 300) {
+                    return;
+                }
+                this.lastKeyboardSkip = now;
+
+                // サーバーに10ノート進む/戻る要求を送信
+                this.syncCore.send({
+                    type: 'skip_notes',
+                    direction: direction,
+                    noteCount: 10,
+                    timestamp: Date.now()
+                });
+
+                const directionText = direction === 'forward' ? '早送り' : '巻き戻し';
+                this.log(`キーボード操作: 10ノーツ${directionText}`, 'info');
+
+                // 視覚的フィードバック
+                this.showKeyboardSkipFeedback(direction);
+            }
+
+            // ★★★ 追加: キーボードスキップの視覚的フィードバック ★★★
+            showKeyboardSkipFeedback(direction) {
+                // 既存のボタンを一時的にハイライト
+                const buttonId = direction === 'forward' ? 'forwardBtn' : 'backwardBtn';
+                const button = document.getElementById(buttonId);
+                
+                if (button) {
+                    const originalStyle = button.style.background;
+                    button.style.background = '#4CAF50';
+                    button.style.transform = 'scale(1.05)';
+                    
+                    setTimeout(() => {
+                        button.style.background = originalStyle;
+                        button.style.transform = '';
+                    }, 200);
+                }
+
+                // ヘッダー部分に一時的なメッセージ表示
+                const feedback = document.createElement('div');
+                feedback.style.cssText = `
+                    position: fixed;
+                    top: 20px;
+                    right: 20px;
+                    background: rgba(76, 175, 80, 0.9);
+                    color: white;
+                    padding: 10px 20px;
+                    border-radius: 20px;
+                    font-weight: bold;
+                    z-index: 1000;
+                    animation: fadeInOut 1s ease;
+                `;
+                feedback.textContent = `${direction === 'forward' ? '→' : '←'} 10ノーツスキップ`;
+                
+                // CSS アニメーションを追加
+                const style = document.createElement('style');
+                style.textContent = `
+                    @keyframes fadeInOut {
+                        0% { opacity: 0; transform: translateY(-10px); }
+                        30% { opacity: 1; transform: translateY(0); }
+                        70% { opacity: 1; transform: translateY(0); }
+                        100% { opacity: 0; transform: translateY(-10px); }
+                    }
+                `;
+                document.head.appendChild(style);
+                
+                document.body.appendChild(feedback);
+                
+                setTimeout(() => {
+                    if (feedback.parentNode) {
+                        feedback.parentNode.removeChild(feedback);
+                    }
+                    if (style.parentNode) {
+                        style.parentNode.removeChild(style);
+                    }
+                }, 1000);
             }
 
             setupUI() {
