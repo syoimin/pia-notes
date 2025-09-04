@@ -749,8 +749,81 @@
                             e.preventDefault();
                             this.handleKeyboardSkip('forward');
                             break;
+                        case 'ArrowUp':
+                            e.preventDefault();
+                            this.adjustBPM(5); // 5 BPM上げる
+                            break;
+                        case 'ArrowDown':
+                            e.preventDefault();
+                            this.adjustBPM(-5); // 5 BPM下げる
+                            break;
                     }
                 });
+            }
+
+            // BPM調整メソッドを追加
+            adjustBPM(change) {
+                const tempoSlider = document.getElementById('tempoSlider');
+                const tempoValue = document.getElementById('tempoValue');
+                
+                if (!tempoSlider || !tempoValue) return;
+                
+                const currentBPM = parseInt(tempoSlider.value);
+                const newBPM = Math.max(0, Math.min(200, currentBPM + change)); // 0-200の範囲に制限
+                
+                // スライダーと表示を更新
+                tempoSlider.value = newBPM;
+                tempoValue.textContent = newBPM;
+                
+                // 演奏中であればリアルタイムでBPM変更を適用
+                if (this.currentPerformance && this.currentPerformance.status === 'playing') {
+                    this.syncCore.requestTempoChange(newBPM);
+                }
+                
+                // 視覚的フィードバック
+                this.showBPMChangeFeedback(change);
+                
+                this.log(`BPM変更: ${currentBPM} → ${newBPM}`, 'info');
+            }
+
+            // BPM変更の視覚的フィードバック
+            showBPMChangeFeedback(change) {
+                const bpmDisplay = document.getElementById('bpmDisplay') || document.getElementById('tempoValue');
+                
+                if (bpmDisplay) {
+                    const originalStyle = bpmDisplay.style.background;
+                    bpmDisplay.style.background = change > 0 ? '#4CAF50' : '#FF9800';
+                    bpmDisplay.style.transform = 'scale(1.1)';
+                    
+                    setTimeout(() => {
+                        bpmDisplay.style.background = originalStyle;
+                        bpmDisplay.style.transform = '';
+                    }, 200);
+                }
+                
+                // 一時的なメッセージ表示
+                const feedback = document.createElement('div');
+                feedback.style.cssText = `
+                    position: fixed;
+                    top: 70px;
+                    right: 20px;
+                    background: rgba(33, 150, 243, 0.9);
+                    color: white;
+                    padding: 8px 16px;
+                    border-radius: 15px;
+                    font-weight: bold;
+                    z-index: 1000;
+                    animation: fadeInOut 1s ease;
+                `;
+                feedback.textContent = `BPM ${change > 0 ? '+' : ''}${change}`;
+                
+                document.body.appendChild(feedback);
+                
+                setTimeout(() => {
+                    if (feedback.parentNode) {
+                        feedback.parentNode.removeChild(feedback);
+                    }
+                }, 1000);
             }
 
             // ★★★ 追加: キーボードスキップ処理メソッド ★★★
