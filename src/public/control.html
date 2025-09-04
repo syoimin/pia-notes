@@ -728,11 +728,6 @@
 
                 // ★★★ 追加: 左右矢印キーでのノーツスキップ ★★★
                 document.addEventListener('keydown', (e) => {
-                    // 演奏中のみ有効
-                    if (!this.currentPerformance || this.currentPerformance.status !== 'playing') {
-                        return;
-                    }
-
                     // 入力フィールドにフォーカスがある場合は無効
                     if (document.activeElement.tagName === 'INPUT' || 
                         document.activeElement.tagName === 'SELECT' || 
@@ -756,6 +751,20 @@
                         case 'ArrowDown':
                             e.preventDefault();
                             this.adjustBPM(-5); // 5 BPM下げる
+                            break;
+                        case ' ': // スペースキー
+                        case 'Space':
+                            console.log(this.currentPerformance)
+                            e.preventDefault();
+                            pausePerformance();
+                            break;
+                        case 'Enter':
+                            e.preventDefault();
+                            startPerformance();
+                            break;
+                        case 'Escape':
+                            e.preventDefault();
+                            stopPerformance();
                             break;
                     }
                 });
